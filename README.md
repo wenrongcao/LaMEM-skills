@@ -35,3 +35,8 @@ solvers, FDSTAG, adding a test, or preparing a PR).
   `Version : 3.0.0` string, treat the upstream commit SHA — not the version — as the real reference
   point when these skills get out of date.
 - Contributions / corrections welcome.
+
+## Contributors
+
+- **Wenrong Cao** ([@wenrongcao](https://github.com/wenrongcao)) — author & maintainer
+- **Claude** (Anthropic, via [Claude Code](https://claude.com/claude-code)) — co-authored the skills
