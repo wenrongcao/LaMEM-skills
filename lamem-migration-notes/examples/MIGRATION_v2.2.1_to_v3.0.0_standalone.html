@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaMEM v2.2.1 → v3.0.0 Migration Guide</title>
+</head>
+<body>
+<title>LaMEM v2.2.1 → v3.0.0 Migration Guide</title>
+<style>
+  /* ---------- palette tokens ----------
+     fumarole   #EFF3F4  light ground (cool, teal-biased)
+     basalt     #17242C  ink
+     instrument #14707F  accent (petrol teal)
+     magma      #B93A0A  warning accent — spent ONLY on the silent pitfall
+     slate      #4E6570  muted, teal-biased grey
+  ------------------------------------- */
+  :root {
+    --ground:      #EFF3F4;
+    --surface:     #FBFCFD;
+    --surface-2:   #E7EDEF;
+    --ink:         #17242C;
+    --muted:       #4E6570;
+    --line:        #D3DDE1;
+    --line-soft:   #E0E8EB;
+    --accent:      #14707F;
+    --accent-ink:  #0E5866;
+    --accent-soft: #DFECEE;
+    --warn:        #B93A0A;
+    --warn-ink:    #9E3007;
+    --warn-soft:   #FAEDE5;
+    --code-bg:     #E9EEF0;
+    --code-ink:    #1E3138;
+    --term-bg:     #131C21;
+    --term-ink:    #C9D7DC;
+    --term-err:    #FF9C7E;
+    --term-head:   #0D1418;
+    --shadow:      0 1px 2px rgba(23,36,44,.06), 0 4px 14px rgba(23,36,44,.05);
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:      #0F161A;
+      --surface:     #162026;
+      --surface-2:   #1C2830;
+      --ink:         #D8E2E6;
+      --muted:       #8FA4AD;
+      --line:        #27353D;
+      --line-soft:   #202D34;
+      --accent:      #4FB6C6;
+      --accent-ink:  #7BCBD8;
+      --accent-soft: #13333B;
+      --warn:        #F08653;
+      --warn-ink:    #F49B70;
+      --warn-soft:   #2E1B12;
+      --code-bg:     #1D2A31;
+      --code-ink:    #C4D4DA;
+      --term-bg:     #0B1114;
+      --term-ink:    #C2D1D6;
+      --term-err:    #FF9C7E;
+      --term-head:   #060A0C;
+      --shadow:      0 1px 2px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:      #EFF3F4;
+    --surface:     #FBFCFD;
+    --surface-2:   #E7EDEF;
+    --ink:         #17242C;
+    --muted:       #4E6570;
+    --line:        #D3DDE1;
+    --line-soft:   #E0E8EB;
+    --accent:      #14707F;
+    --accent-ink:  #0E5866;
+    --accent-soft: #DFECEE;
+    --warn:        #B93A0A;
+    --warn-ink:    #9E3007;
+    --warn-soft:   #FAEDE5;
+    --code-bg:     #E9EEF0;
+    --code-ink:    #1E3138;
+    --term-bg:     #131C21;
+    --term-ink:    #C9D7DC;
+    --term-err:    #FF9C7E;
+    --term-head:   #0D1418;
+    --shadow:      0 1px 2px rgba(23,36,44,.06), 0 4px 14px rgba(23,36,44,.05);
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0F161A;
+    --surface:     #162026;
+    --surface-2:   #1C2830;
+    --ink:         #D8E2E6;
+    --muted:       #8FA4AD;
+    --line:        #27353D;
+    --line-soft:   #202D34;
+    --accent:      #4FB6C6;
+    --accent-ink:  #7BCBD8;
+    --accent-soft: #13333B;
+    --warn:        #F08653;
+    --warn-ink:    #F49B70;
+    --warn-soft:   #2E1B12;
+    --code-bg:     #1D2A31;
+    --code-ink:    #C4D4DA;
+    --term-bg:     #0B1114;
+    --term-ink:    #C2D1D6;
+    --term-err:    #FF9C7E;
+    --term-head:   #060A0C;
+    --shadow:      0 1px 2px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.25);
+  }
+
+  html { background: var(--ground); }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--ground);
+    line-height: 1.6;
+    font-size: 1rem;
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+
+  a { color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); text-underline-offset: 2px; }
+  a:hover { text-decoration-color: var(--accent); }
+  a:focus-visible, summary:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  code, pre, kbd {
+    font-family: var(--mono);
+    font-size: .875em;
+  }
+  code {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: .1em .35em;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  h1 code, h2 code, h3 code { font-size: .85em; }
+
+  /* ---------- page frame ---------- */
+  .page {
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    gap: 3rem;
+    align-items: start;
+  }
+  main { min-width: 0; max-width: 48rem; }
+
+  /* ---------- header ---------- */
+  header.doc-head {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--line);
+    padding: 1.25rem 0 1.75rem;
+    margin-bottom: 1rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 .6rem;
+  }
+  header.doc-head h1 {
+    font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+    line-height: 1.2;
+    margin: 0 0 .75rem;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+    font-weight: 650;
+  }
+  .ver-chips {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+    font-family: var(--mono); font-size: .82rem;
+  }
+  .chip {
+    display: inline-block;
+    padding: .18rem .6rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .chip.to {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  /* post-release marker — reused wherever content post-dates the v3.0.0 tag */
+  .pr {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .64rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    vertical-align: .08em;
+    white-space: nowrap;
+    padding: .1rem .4rem .05rem;
+    border-radius: 4px;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .pr::before { content: "◇ "; opacity: .7; }
+  h3 .pr { vertical-align: .12em; margin-left: .1rem; }
+  .chip-arrow { color: var(--muted); }
+  .lede {
+    max-width: 46rem;
+    color: var(--muted);
+    margin: 1rem 0 0;
+  }
+  .lede strong { color: var(--ink); }
+
+  /* ---------- TOC ---------- */
+  nav.toc {
+    position: sticky;
+    top: 1.25rem;
+    font-size: .85rem;
+  }
+  nav.toc summary {
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: .35rem 0;
+    list-style: none;
+  }
+  nav.toc summary::before { content: "▸ "; }
+  nav.toc details[open] summary::before { content: "▾ "; }
+  nav.toc ol {
+    list-style: none;
+    margin: .5rem 0 0;
+    padding: 0;
+    border-left: 1px solid var(--line);
+  }
+  nav.toc li a {
+    display: flex;
+    gap: .55rem;
+    padding: .3rem .75rem;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    margin-left: -1.5px;
+    line-height: 1.35;
+  }
+  nav.toc li a .n {
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--muted);
+    min-width: 1.1rem;
+    text-align: right;
+    padding-top: .12em;
+    font-variant-numeric: tabular-nums;
+  }
+  nav.toc li a:hover { color: var(--ink); border-left-color: var(--line); }
+  nav.toc li a[aria-current="true"] {
+    color: var(--accent-ink);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+  nav.toc li a[aria-current="true"] .n { color: var(--accent-ink); }
+
+  /* ---------- headings ---------- */
+  section { margin: 0 0 3rem; scroll-margin-top: 1.25rem; }
+  h2 {
+    display: flex;
+    align-items: baseline;
+    gap: .7rem;
+    font-size: 1.38rem;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    margin: 0 0 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    text-wrap: balance;
+  }
+  .secno {
+    font-family: var(--mono);
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 5px;
+    padding: .1rem .45rem;
+    transform: translateY(-.15em);
+    white-space: nowrap;
+  }
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 650;
+    margin: 2rem 0 .75rem;
+    scroll-margin-top: 1.25rem;
+  }
+  h3 .subno { font-family: var(--mono); font-size: .82rem; color: var(--accent-ink); margin-right: .45rem; }
+  p { margin: 0 0 1rem; max-width: 46rem; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; max-width: 46rem; }
+  li { margin-bottom: .4rem; }
+  li::marker { color: var(--muted); }
+
+  /* ---------- tables ---------- */
+  .table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    margin: 0 0 1.25rem;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: .9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: .55rem .85rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  tr:last-child td { border-bottom: none; }
+  th {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  td code { white-space: nowrap; }
+  td .dim { color: var(--muted); }
+  .map-table td:first-child code { background: var(--warn-soft); color: var(--warn-ink); }
+  .map-table td:nth-child(2) code { background: var(--accent-soft); color: var(--accent-ink); }
+
+  /* ---------- code blocks ---------- */
+  figure.code {
+    margin: 0 0 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    max-width: 100%;
+  }
+  figure.code figcaption {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .06em;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    padding: .4rem .85rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  figure.code figcaption .tag { text-transform: uppercase; letter-spacing: .12em; }
+  figure.code pre {
+    margin: 0;
+    padding: .85rem 1rem;
+    overflow-x: auto;
+    line-height: 1.55;
+    color: var(--code-ink);
+    background: var(--surface);
+  }
+  figure.code pre .cm { color: var(--muted); }
+  figure.code pre .kw { color: var(--accent-ink); font-weight: 600; }
+
+  /* terminal / verbatim error output */
+  figure.term {
+    margin: 0 0 1.25rem;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--term-bg);
+    border: 1px solid color-mix(in srgb, var(--term-bg) 60%, var(--line));
+    box-shadow: var(--shadow);
+    max-width: 100%;
+  }
+  figure.term figcaption {
+    font-family: var(--mono);
+    font-size: .7rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--term-ink) 60%, var(--term-bg));
+    background: var(--term-head);
+    padding: .35rem .85rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+  figure.term figcaption::before {
+    content: "";
+    width: .5rem; height: .5rem; border-radius: 50%;
+    background: var(--term-err);
+    flex: none;
+  }
+  figure.term pre {
+    margin: 0;
+    padding: .8rem 1rem;
+    overflow-x: auto;
+    color: var(--term-ink);
+    line-height: 1.55;
+  }
+  figure.term pre .err { color: var(--term-err); }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 8px 8px 0;
+    padding: .8rem 1rem;
+    margin: 0 0 1.25rem;
+    max-width: 46rem;
+    font-size: .93rem;
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note .note-label {
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    display: block;
+    margin-bottom: .3rem;
+  }
+
+  /* pitfalls */
+  .pitfall {
+    border-radius: 10px;
+    margin: 0 0 1.5rem;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .pitfall-head {
+    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+    padding: .7rem 1rem;
+    font-weight: 650;
+  }
+  .pitfall-body { padding: .25rem 1.1rem 1rem; }
+  .pitfall-body p, .pitfall-body ul { max-width: none; }
+  .badge {
+    font-family: var(--mono);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: .16rem .55rem;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .pitfall.silent {
+    border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line));
+    border-left: 5px solid var(--warn);
+    background: var(--warn-soft);
+  }
+  .pitfall.silent .pitfall-head { color: var(--warn-ink); }
+  .pitfall.silent .badge { background: var(--warn); color: #FFF6F0; }
+  .pitfall.silent .glyph { font-size: 1.05rem; line-height: 1; }
+  .pitfall.loud {
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--muted);
+    background: var(--surface);
+  }
+  .pitfall.loud .badge { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+  .pitfall .table-wrap { box-shadow: none; margin-top: .75rem; }
+
+  /* ---------- TL;DR checklist ---------- */
+  ol.checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+    counter-reset: chk;
+    max-width: 48rem;
+  }
+  ol.checklist > li {
+    counter-increment: chk;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: .7rem;
+    align-items: baseline;
+    padding: .7rem .9rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    margin-bottom: .5rem;
+  }
+  ol.checklist > li::before {
+    content: counter(chk);
+    font-family: var(--mono);
+    font-size: .72rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  ol.checklist input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 1rem; height: 1rem;
+    transform: translateY(.15em);
+    cursor: pointer;
+  }
+  ol.checklist .go {
+    font-family: var(--mono);
+    font-size: .78rem;
+    white-space: nowrap;
+  }
+  ol.checklist .warn-inline {
+    display: block;
+    margin-top: .35rem;
+    font-size: .88rem;
+    color: var(--warn-ink);
+  }
+  ol.checklist .warn-inline a { color: var(--warn-ink); }
+
+  /* quick self-check — a reference card at the top of §0 */
+  .selfcheck {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    padding: 1rem 1.25rem .35rem;
+    margin-top: 1.75rem;
+  }
+  .selfcheck h3 { margin-top: .35rem; scroll-margin-top: 1.25rem; }
+  .selfcheck > p { color: var(--muted); max-width: none; }
+  .selfcheck ol { max-width: none; }
+  .selfcheck ol > li { margin-bottom: .55rem; }
+
+  /* guard-message list (§5.5) */
+  ul.guards { list-style: none; padding: 0; max-width: none; }
+  ul.guards li {
+    font-family: var(--mono);
+    font-size: .84rem;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-left: 3px solid var(--muted);
+    border-radius: 0 6px 6px 0;
+    padding: .45rem .75rem;
+    margin-bottom: .4rem;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* appendix chips */
+  .chip-cloud { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0 1.25rem; }
+  .chip-cloud code { white-space: nowrap; }
+  .chip-cloud.removed code { background: var(--warn-soft); color: var(--warn-ink); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--warn) 55%, transparent); text-decoration-thickness: 1px; }
+  .chip-cloud.added code { background: var(--accent-soft); color: var(--accent-ink); }
+
+  .before-after { display: grid; grid-template-columns: 1fr; gap: 0; }
+
+  footer.doc-foot {
+    border-top: 1px solid var(--line);
+    padding-top: 1.25rem;
+    color: var(--muted);
+    font-size: .85rem;
+    font-style: italic;
+    max-width: 46rem;
+  }
+
+  hr.sep { border: none; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 60rem) {
+    .page { grid-template-columns: 1fr; gap: 1.5rem; }
+    nav.toc { position: static; }
+    nav.toc ol { border-left: none; column-count: 2; column-gap: 2rem; }
+    nav.toc li { break-inside: avoid; }
+    nav.toc li a { border-left: none; margin-left: 0; padding-left: 0; }
+  }
+  @media (min-width: 60.01rem) {
+    nav.toc summary { display: none; }
+    nav.toc details > ol { display: block; }
+  }
+  @media (max-width: 40rem) {
+    nav.toc ol { column-count: 1; }
+    ol.checklist > li { grid-template-columns: auto auto 1fr; padding: .6rem .7rem; }
+  }
+</style>
+
+<div class="page">
+
+<header class="doc-head">
+  <p class="eyebrow">LaMEM · Migration Guide</p>
+  <h1>Migrating LaMEM from v2.2.1 to v3.0.0</h1>
+  <div class="ver-chips">
+    <span class="chip">v2.2.1 · released 2026-04-08</span>
+    <span class="chip-arrow">→</span>
+    <span class="chip to">v3.0.0 · initial release 2026-05-06 · <a href="https://github.com/UniMainzGeo/LaMEM/pull/65">PR&nbsp;#65</a></span>
+    <span class="chip">HEAD <code>eaf75d4b</code> · 2026-06-15</span>
+  </div>
+  <p class="lede">A practical guide for updating your input files, solver setups, tests, and any local source patches when moving from <strong>LaMEM v2.2.1</strong> to <strong>LaMEM v3.0.0</strong>.</p>
+  <div class="note" style="margin-top:1rem;">
+    <span class="note-label">Targets the current v3.0.0 development line, not just the release tag</span>
+    <p>This guide reflects HEAD commit <code>eaf75d4b</code> (2026-06-15), which includes the post-release fixes merged after the tag (PRs #66, #68, #69, #70 — PBC hardening, integer-type cleanup, passive-tracer output, and the restored <code>t36</code> erosion test). Changes made since the <code>v3.0.0</code> tag are flagged inline with <span class="pr">post-release</span>.</p>
+    <p>This guide was produced by diffing the two source trees directly and by running unmodified v2.2.1 input files under the v3.0.0 binary to observe real behavior. File/line references point into the current v3.0.0 source unless noted.</p>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <details open>
+    <summary>Contents</summary>
+    <ol>
+      <li><a href="#s0"><span class="n">0</span><span>TL;DR — migration checklist</span></a></li>
+      <li><a href="#s1"><span class="n">1</span><span>Requirements &amp; build</span></a></li>
+      <li><a href="#s2"><span class="n">2</span><span>What's new in v3.0.0</span></a></li>
+      <li><a href="#s3"><span class="n">3</span><span>Repository layout changes</span></a></li>
+      <li><a href="#s4"><span class="n">4</span><span>Solver options — the headline change</span></a></li>
+      <li><a href="#s5"><span class="n">5</span><span>Input-file breaking changes</span></a></li>
+      <li><a href="#s6"><span class="n">6</span><span>Tests &amp; examples</span></a></li>
+      <li><a href="#s7"><span class="n">7</span><span>If you patched the source</span></a></li>
+      <li><a href="#s8"><span class="n">8</span><span>Pitfalls &amp; troubleshooting</span></a></li>
+      <li><a href="#appendix"><span class="n">A</span><span>Parameter change reference</span></a></li>
+    </ol>
+  </details>
+</nav>
+
+<main>
+
+<!-- ==================== 0 ==================== -->
+<section id="s0" aria-labelledby="h-s0">
+  <h2 id="h-s0"><span class="secno">§0</span>TL;DR — the migration checklist</h2>
+  <p>If you only read one section, read this.</p>
+  <ol class="checklist">
+    <li>
+      <input type="checkbox" id="chk1" aria-label="Checklist item 1"><label for="chk1">
+        <strong>Rewrite your solver block.</strong> The old top-level <code>SolverType</code>, <code>DirectSolver</code>, <code>DirectPenalty</code>, and all <code>MG*</code> parameters are <strong>gone</strong>. Replace them (and most of your hand-written <code>&lt;PetscOptionsStart&gt;</code> solver flags) with a new <code>&lt;SolverOptionsStart&gt;…&lt;SolverOptionsEnd&gt;</code> block. <a class="go" href="#s4">→ §4</a>
+        <span class="warn-inline">⚠ These removed parameters are <strong>silently ignored</strong> — your model will still run, but with v3.0.0 <em>default</em> solver settings, not yours. See the pitfall in <a href="#s8">§8</a>.</span>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk2" aria-label="Checklist item 2"><label for="chk2">
+        <strong>2D setups: change <code>nel_y = 1</code> → <code>nel_y = 2</code>.</strong> Fewer than 2 cells in any direction is now a hard error. <a class="go" href="#s5-1">→ §5.1</a>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk3" aria-label="Checklist item 3"><label for="chk3">
+        <strong>Graded meshes: drop non-unit <code>bias_*</code>.</strong> Bias ratios ≠ 1.0 are now rejected. <a class="go" href="#s5-2">→ §5.2</a>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk4" aria-label="Checklist item 4"><label for="chk4">
+        <strong>Out-of-plane background shear removed.</strong> <code>exz_strain_rates</code> / <code>eyz_strain_rates</code> (and their <code>*_time_delims</code>) no longer exist. <a class="go" href="#s5-3">→ §5.3</a>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk5" aria-label="Checklist item 5"><label for="chk5">
+        <strong>Gravity-survey feature removed</strong> entirely (<code>gravity.cpp/h</code> deleted). <a class="go" href="#s5-4">→ §5.4</a>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk6" aria-label="Checklist item 6"><label for="chk6">
+        <strong>Paths changed:</strong> <code>input_models/</code> → <code>examples/</code>; <code>matlab/</code>, <code>utils/</code>, top-level <code>docs/</code> removed; new <code>info/</code> reference dir. <a class="go" href="#s3">→ §3</a>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk7" aria-label="Checklist item 7"><label for="chk7">
+        <strong>Tests renamed:</strong> <code>t1_…</code> → <code>t01_…</code>, <code>.expected</code> files lost their <code>-pN</code> suffix. Update any downstream CI. <a class="go" href="#s6">→ §6</a>
+      </label>
+    </li>
+    <li>
+      <input type="checkbox" id="chk8" aria-label="Checklist item 8"><label for="chk8">
+        <strong>If you patched the C++ source:</strong> every <code>CHKERRQ(ierr)</code> is now <code>PetscCall(...)</code>, the build enforces <code>-std=c++17</code> with strict warnings, and needs PETSc 3.19–3.25. <a class="go" href="#s7">→ §7</a>
+      </label>
+    </li>
+  </ol>
+
+  <div class="selfcheck">
+    <h3 id="quickcheck">Quick self-check when migrating a file</h3>
+    <p>The fastest way to migrate one <code>.dat</code> file: work top to bottom. Items 1–7 cover every breaking change and both pitfalls; item 8 is the runtime confirmation.</p>
+    <ol>
+      <li><strong>Solver block</strong> — search for <code>SolverType</code>, <code>DirectSolver</code>, <code>DirectPenalty</code>, <code>MG</code> — if present, rewrite the solver block (<a href="#s4">§4</a>). ⚠ Otherwise silently ignored (Pitfall&nbsp;#1) — this is the dangerous one.</li>
+      <li><strong>Grid resolution</strong> — grep for <code>nel_x</code>/<code>nel_y</code>/<code>nel_z = 1</code> — bump any direction to ≥ 2 (<a href="#s5-1">§5.1</a>). Otherwise: <code>Less than two cells are specified…</code></li>
+      <li><strong>Mesh grading</strong> — grep for <code>bias_</code> — drop non-unit ratios; use uniform <code>nseg_*</code> segments (<a href="#s5-2">§5.2</a>). Otherwise: <code>Non-unit bias ratios are deprecated…</code></li>
+      <li><strong>Background shear</strong> — grep for <code>exz_</code>, <code>eyz_</code> — the out-of-plane components are gone; remove them (<a href="#s5-3">§5.3</a>). Otherwise: required-parameter-not-found on <code>exz_strain_rates</code>.</li>
+      <li><strong>Linear + thermal</strong> — if you used <code>-snes_type ksponly</code> together with thermal diffusion (<code>act_temp_diff = 1</code>), replace it with <code>set_linear_problem = 1</code> (or <code>-snes_max_it 1</code>, <code>src/nlsolve.cpp:117</code>) — the old combination now aborts (<a href="#s8">§8</a>, Pitfall&nbsp;#2).</li>
+      <li><strong>Periodic BCs</strong> — if you set <code>periodic</code>, check it against the compatibility guards: no-slip bottom, <em>no</em> no-slip left/right, no <code>xx</code>/<code>xy</code> background strain, no <code>bvel_face</code>, no <code>fix_phase</code>/<code>fix_cell</code> (<a href="#s5-5">§5.5</a>). Otherwise: <code>Periodic condition is incompatible with …</code></li>
+      <li><strong>Gravity survey</strong> — grep for any gravity-survey options; the feature was removed with <strong>no replacement</strong> (<a href="#s5-4">§5.4</a>).</li>
+      <li><strong>Verify at runtime</strong> — run once with <code>monitor_solvers = 1</code> and confirm the penalty/tolerances/solver in the PETSc option dump match what you expect.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ==================== 1 ==================== -->
+<section id="s1" aria-labelledby="h-s1">
+  <h2 id="h-s1"><span class="secno">§1</span>Requirements &amp; build</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>v2.2.1</th><th>v3.0.0</th></tr></thead>
+      <tbody>
+        <tr><td>PETSc</td><td>3.19-ish</td><td><strong>3.19 – 3.25</strong> (some features need 3.24/3.25)</td></tr>
+        <tr><td>C++ standard</td><td>not pinned in Makefile</td><td><strong><code>-std=c++17</code></strong> enforced</td></tr>
+        <tr><td>Makefile</td><td><code>Makefile</code> + <code>Makefile.in</code></td><td><strong>single <code>Makefile</code></strong> (<code>Makefile.in</code> removed)</td></tr>
+        <tr><td>Warnings</td><td>minimal</td><td><strong>strict</strong> (<code>-Wall -Wextra -Wconversion -Wshorten-64-to-32 …</code>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Build commands are unchanged in spirit:</p>
+  <figure class="code">
+    <figcaption><span class="tag">shell</span></figcaption>
+    <pre>export PETSC_OPT=/path/to/petsc/opt
+export PETSC_DEB=/path/to/petsc/deb
+cd src
+make mode=opt all        <span class="cm"># → bin/opt/LaMEM</span>
+make mode=deb all        <span class="cm"># → bin/deb/LaMEM</span>
+make mode=opt dylib      <span class="cm"># → lib/opt/LaMEMLib.* (Julia integration)</span></pre>
+  </figure>
+  <p>The <code>coupled_direct</code> Stokes solver and a few other paths are guarded on PETSc 3.24/3.25 (<code>src/options.cpp:65</code>, <code>src/lsolve.cpp:367</code>, etc.). On older PETSc in the supported range, use a <code>block_*</code> solver instead.</p>
+</section>
+
+<!-- ==================== 2 ==================== -->
+<section id="s2" aria-labelledby="h-s2">
+  <h2 id="h-s2"><span class="secno">§2</span>What's new in v3.0.0 (the "why")</h2>
+  <p>From the upstream release notes (PR&nbsp;#65):</p>
+  <ul>
+    <li><strong>Hybrid multigrid framework</strong> — assembled <em>and</em> matrix-free levels in one solve.</li>
+    <li><strong>Matrix-free Jacobian operator</strong> (<code>src/matFree.cpp/h</code>, <code>src/matData.cpp/h</code>).</li>
+    <li><strong>Block direct solver</strong> and improved <strong>2D multigrid coarsening</strong> for quasi-2D models.</li>
+    <li><strong>Periodic boundary conditions</strong> (mechanical <em>and</em> thermal), end-to-end.</li>
+    <li><strong>wBFBT preconditioner</strong> (Rudi et al., 2017) — <code>src/matBFBT.cpp</code>.</li>
+    <li><strong>Automated solver options &amp; stop tolerances</strong> — a new <code>&lt;SolverOptionsStart&gt;</code> DSL (<code>src/options.cpp/h</code>) that picks sensible PETSc settings for you.</li>
+  </ul>
+  <p>The last point is the single biggest day-to-day change and is why most v2.2.1 input files need editing.</p>
+</section>
+
+<!-- ==================== 3 ==================== -->
+<section id="s3" aria-labelledby="h-s3">
+  <h2 id="h-s3"><span class="secno">§3</span>Repository layout changes</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>v2.2.1</th><th>v3.0.0</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>input_models/</code></td><td><code>examples/</code></td><td>renamed</td></tr>
+        <tr><td><code>input_models/BuildInSetups/</code></td><td><code>examples/BuiltInSetups/</code></td><td>typo fixed in dir name</td></tr>
+        <tr><td><code>input_models/MCC/</code>, <code>ScalingTests/</code>, <code>input/</code></td><td><span class="dim">—</span></td><td>removed</td></tr>
+        <tr><td><span class="dim">—</span></td><td><code>examples/PeriodicFreeSurface/</code></td><td>new worked PBC example</td></tr>
+        <tr><td><code>matlab/</code>, <code>utils/</code></td><td><span class="dim">—</span></td><td>removed</td></tr>
+        <tr><td><code>docs/</code>, <code>doc/Manual</code>, <code>doc/Paraview</code>, <code>doc/installation</code></td><td><code>doc/src/</code> + <code>doc/make.jl</code></td><td>now a Documenter.jl site</td></tr>
+        <tr><td><span class="dim">—</span></td><td><code>info/</code></td><td><strong>new</strong> quick reference: <code>info/options/input_file.dat</code>, <code>info/options/solver_options.txt</code></td></tr>
+        <tr><td><code>scripts/*.py, *.sh</code> (loose)</td><td><code>scripts/bash/</code>, <code>scripts/julia/</code></td><td>reorganized</td></tr>
+        <tr><td><code>src/gravity.cpp/h</code></td><td><span class="dim">—</span></td><td>feature removed (see <a href="#s5-4">§5.4</a>)</td></tr>
+        <tr><td><span class="dim">—</span></td><td><code>src/options.*</code>, <code>src/matFree.*</code>, <code>src/matData.*</code>, <code>src/matBFBT.cpp</code>, <code>src/matAux.cpp</code></td><td>new solver machinery</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <span class="note-label">Bookmark these</span>
+    <p><strong>Two files worth bookmarking in v3.0.0:</strong> <code>info/options/input_file.dat</code> (every input parameter) and <code>info/options/solver_options.txt</code> (every solver prefix/option, with worked examples). They are the canonical reference this guide condenses.</p>
+  </div>
+</section>
+
+<!-- ==================== 4 ==================== -->
+<section id="s4" aria-labelledby="h-s4">
+  <h2 id="h-s4"><span class="secno">§4</span>Solver options: the headline change</h2>
+
+  <h3 id="s4-1"><span class="subno">4.1</span>The old way (v2.2.1)</h3>
+  <p>Solver configuration was split between <strong>top-level parameters</strong> and a hand-written <strong><code>&lt;PetscOptionsStart&gt;</code></strong> block of raw PETSc flags:</p>
+  <figure class="code">
+    <figcaption><span>v2.2.1 <code>.dat</code></span><span class="tag">removed style</span></figcaption>
+    <pre><span class="cm"># Solver options</span>
+    SolverType     = direct       <span class="cm"># direct or multigrid</span>
+    DirectSolver   = mumps        <span class="cm"># mumps / superlu_dist / pastix</span>
+    DirectPenalty  = 1e5
+
+<span class="kw">&lt;PetscOptionsStart&gt;</span>
+    -snes_type ksponly            <span class="cm"># linear problem</span>
+    -js_ksp_type gmres
+    -js_ksp_max_it 25
+    -js_ksp_monitor
+    -js_ksp_rtol 1e-4
+    -js_ksp_atol 1e-10
+<span class="kw">&lt;PetscOptionsEnd&gt;</span></pre>
+  </figure>
+
+  <h3 id="s4-2"><span class="subno">4.2</span>The new way (v3.0.0)</h3>
+  <p>A structured <code>&lt;SolverOptionsStart&gt;</code> block. LaMEM expands it into the correct PETSc options for you (<code>src/options.cpp</code>):</p>
+  <figure class="code">
+    <figcaption><span>v3.0.0 <code>.dat</code></span><span class="tag">new style</span></figcaption>
+    <pre><span class="kw">&lt;SolverOptionsStart&gt;</span>
+    set_linear_problem = 1
+    monitor_solvers    = 1
+    linear_tolerances  = 1e-4 1e-10 25   <span class="cm"># rtol, atol, maxit</span>
+    stokes_solver      = block_direct
+    direct_solver_type = mumps
+    penalty            = 1e5
+<span class="kw">&lt;SolverOptionsEnd&gt;</span></pre>
+  </figure>
+  <p>You can still drop to raw PETSc flags: a <code>&lt;PetscOptionsStart&gt;</code> block is honored, and <code>skip_defaults = 1</code> disables the auto-presets entirely so you control everything.</p>
+
+  <h3 id="s4-3"><span class="subno">4.3</span>Removed → new parameter map</h3>
+  <div class="table-wrap">
+    <table class="map-table">
+      <thead><tr><th>v2.2.1 parameter</th><th>v3.0.0 replacement</th></tr></thead>
+      <tbody>
+        <tr><td><code>SolverType = direct</code></td><td><code>stokes_solver = block_direct</code> (or <code>coupled_direct</code>)</td></tr>
+        <tr><td><code>SolverType = multigrid</code></td><td><code>stokes_solver = coupled_mg</code> (or <code>block_mg</code>)</td></tr>
+        <tr><td><code>DirectSolver = mumps/superlu_dist</code></td><td><code>direct_solver_type = mumps/superlu_dist/default</code></td></tr>
+        <tr><td><code>DirectPenalty = P</code></td><td><code>penalty = P</code></td></tr>
+        <tr><td><code>MGLevels = N</code></td><td><code>num_mg_levels = N</code></td></tr>
+        <tr><td><code>MGSmoother = jacobi</code></td><td><code>smoother_type = light</code> (richardson+jacobi)</td></tr>
+        <tr><td><code>MGSmoother = chebyshev</code></td><td><code>smoother_type = intermediate</code> (chebyshev+sor)</td></tr>
+        <tr><td><code>MGJacobiDamp = d</code></td><td><code>smoother_damping = d</code></td></tr>
+        <tr><td><code>MGSweeps = n</code></td><td><code>smoother_num_sweeps = n</code></td></tr>
+        <tr><td><code>MGCoarseSolver = redundant</code></td><td><code>coarse_solver = direct</code> + <code>coarse_num_cpu = 1</code></td></tr>
+        <tr><td><code>MGCoarseSolver = direct/mumps</code></td><td><code>coarse_solver = direct</code> + <code>direct_solver_type = …</code></td></tr>
+        <tr><td><code>MGRedundantNum</code> / <code>MGRedundantSolver</code></td><td><em class="dim">(removed — redundant coarse solver deprecated; telescope is used internally)</em></td></tr>
+        <tr><td><code>-snes_type ksponly</code></td><td><code>set_linear_problem = 1</code></td></tr>
+        <tr><td><code>-js_ksp_monitor</code> / <code>-snes_monitor</code></td><td><code>monitor_solvers = 1</code></td></tr>
+        <tr><td><code>-js_ksp_rtol / atol / max_it</code></td><td><code>linear_tolerances = rtol atol maxit</code></td></tr>
+        <tr><td><code>-snes_rtol / atol / max_it</code></td><td><code>nonlinear_tolerances = rtol atol maxit</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note">
+    <span class="note-label">Tolerances</span>
+    <p>An <code>atol</code> of <code>-1</code> means "choose automatically". Tolerance triplets are <code>rtol atol maxit</code>; the block/coarse tolerances are pairs <code>rtol maxit</code>.</p>
+  </div>
+
+  <h3 id="s4-4"><span class="subno">4.4</span><code>stokes_solver</code> presets — what each expands to</h3>
+  <p>Defined in <code>src/options.cpp:170-225</code>:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th><code>stokes_solver</code></th><th>Expands to (PETSc)</th><th>Use when</th></tr></thead>
+      <tbody>
+        <tr><td><code>coupled_direct</code></td><td><code>-jp_type user</code> (+ penalty)</td><td>small problems; ⚠ upstream recommends a <code>block_*</code> solver instead</td></tr>
+        <tr><td><code>block_direct</code></td><td><code>-jp_type bf -bf_vs_type user</code></td><td>direct velocity solve with penalty (Powell–Hestenes)</td></tr>
+        <tr><td><code>coupled_mg</code></td><td><code>-jp_type mg</code></td><td>coupled Galerkin geometric multigrid</td></tr>
+        <tr><td><code>block_mg</code></td><td><code>-jp_type bf -bf_vs_type mg -bf_schur_type inv_eta</code></td><td>block factorization, MG velocity, inverse-viscosity Schur</td></tr>
+        <tr><td><code>wbfbt</code></td><td><code>-jp_type bf -bf_vs_type mg -bf_schur_type wbfbt</code></td><td><strong>new</strong> scaled BFBT Schur (Rudi et al. 2017)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><code>smoother_type</code> (<code>src/options.cpp:602-614</code>): <code>light</code> = richardson + jacobi, <code>intermediate</code> = chebyshev + sor, <code>heavy</code> = gmres + bjacobi (<strong>default</strong>).</p>
+  <div class="note">
+    <span class="note-label">Direct-solver details <span class="pr">post-release</span></span>
+    <p><strong><code>penalty</code> applies to <em>all</em> direct solvers</strong> — both <code>coupled_direct</code> and <code>block_direct</code> (<code>src/options.h:41</code>). Earlier v3.0.0 docs said "only for block_direct"; this was corrected after the tag, so map your old <code>DirectPenalty</code> to <code>penalty</code> regardless of which direct solver you pick.</p>
+    <p><strong><code>direct_solver_type = default</code></strong> uses the PETSc built-in LU factorization, which is <strong>sequential only</strong> — fine on 1 core, but for parallel runs choose <code>mumps</code> or <code>superlu_dist</code>.</p>
+  </div>
+
+  <h3 id="s4-5"><span class="subno">4.5</span>New capabilities with no v2.2.1 equivalent</h3>
+  <ul>
+    <li><strong>Matrix-free Jacobian:</strong> <code>use_mat_free_jac</code> in the block (or <code>-js_mat_free</code>).</li>
+    <li><strong>Matrix-free MG levels:</strong> <code>num_mat_free_levels</code> (or <code>-gmg_mat_free_levels N</code>) — N top levels run matrix-free, followed by one assembled level. <em>(Not supported with the block preconditioner or 2D coarsening.)</em></li>
+    <li><strong>wBFBT</strong> Schur preconditioner: <code>stokes_solver = wbfbt</code>.</li>
+    <li><strong>Zero-config solver:</strong> omit the solver block entirely and <code>solverOptionsSetDefaults()</code> picks a working solver for your problem type.</li>
+  </ul>
+
+  <h3 id="s4-6"><span class="subno">4.6</span>Worked example — full before/after</h3>
+  <div class="before-after">
+    <figure class="code">
+      <figcaption><span>v2.2.1 — <code>FallingBlock_mono_PenaltyDirect.dat</code> (excerpt)</span><span class="tag">before</span></figcaption>
+      <pre>    SolverType     = direct
+    DirectSolver   = mumps
+    DirectPenalty  = 1e5
+<span class="kw">&lt;PetscOptionsStart&gt;</span>
+    -snes_type ksponly
+    -js_ksp_type gmres
+    -js_ksp_max_it 25
+    -js_ksp_monitor
+    -js_ksp_rtol 1e-4
+    -js_ksp_atol 1e-10
+<span class="kw">&lt;PetscOptionsEnd&gt;</span></pre>
+    </figure>
+    <figure class="code">
+      <figcaption><span>v3.0.0 — <code>test/t01_FB1_Direct/FallingBlock_Direct_Default.dat</code> (the migrated form)</span><span class="tag">after</span></figcaption>
+      <pre><span class="kw">&lt;SolverOptionsStart&gt;</span>
+    set_linear_problem = 1
+    monitor_solvers    = 1
+    linear_tolerances  = 1e-4 1e-10 25   <span class="cm"># rtol, atol, maxit</span>
+    stokes_solver      = block_direct
+    direct_solver_type = default
+    penalty            = 1e5             <span class="cm"># keep your old DirectPenalty here!</span>
+<span class="kw">&lt;SolverOptionsEnd&gt;</span></pre>
+    </figure>
+  </div>
+</section>
+
+<!-- ==================== 5 ==================== -->
+<section id="s5" aria-labelledby="h-s5">
+  <h2 id="h-s5"><span class="secno">§5</span>Input-file (<code>.dat</code>) breaking changes</h2>
+
+  <h3 id="s5-1"><span class="subno">5.1</span>Minimum 2 cells per direction (breaking)</h3>
+  <p>FDSTAG now aborts if any direction has fewer than 2 cells (<code>src/fdstag.cpp:69</code>). Classic quasi-2D setups that used <code>nel_y = 1</code> must use <code>nel_y = 2</code>.</p>
+  <p><strong>Observed error (verified by running):</strong></p>
+  <figure class="term">
+    <figcaption>stderr — aborts at grid setup, exit code 83</figcaption>
+    <pre><span class="err">[0]PETSC ERROR: Less than two cells are specified in the y - direction</span></pre>
+  </figure>
+  <p>The run aborts immediately at grid setup (exit code 83).</p>
+
+  <h3 id="s5-2"><span class="subno">5.2</span>Mesh bias ratios deprecated</h3>
+  <p>Non-unit <code>bias_x/bias_y/bias_z</code> (graded meshes) are now rejected (<code>src/fdstag.cpp:83</code>):</p>
+  <figure class="term">
+    <figcaption>stderr</figcaption>
+    <pre><span class="err">Non-unit bias ratios are deprecated (bias_x)</span></pre>
+  </figure>
+  <p>Use uniform segments (or split a direction into multiple <code>nseg_*</code> uniform segments).</p>
+
+  <h3 id="s5-3"><span class="subno">5.3</span>Background strain rates reduced</h3>
+  <p>The out-of-plane background shear components were removed. In v2.2.1 <code>src/bc.cpp</code> read <code>exz_strain_rates</code> and <code>eyz_strain_rates</code> (plus their <code>*_time_delims</code>); v3.0.0 keeps only the in-plane / normal set:</p>
+  <ul>
+    <li><strong>Still supported:</strong> <code>exx_strain_rates</code>, <code>eyy_strain_rates</code>, <code>exy_strain_rates</code> (+ matching <code>*_time_delims</code>).</li>
+    <li><strong>Removed:</strong> <code>exz_strain_rates</code>, <code>exz_time_delims</code>, <code>eyz_strain_rates</code>, <code>eyz_time_delims</code>.</li>
+  </ul>
+  <p>If your model imposed background <code>exz</code>/<code>eyz</code>, that loading path no longer exists.</p>
+
+  <h3 id="s5-4"><span class="subno">5.4</span>Gravity-survey feature removed</h3>
+  <p><code>src/gravity.cpp</code> and <code>src/gravity.h</code> were deleted with <strong>no replacement</strong> <span class="pr">post-release</span> — the files still existed at the <code>v3.0.0</code> tag and were removed in the following dev commits. Any input relying on the gravity-survey / synthetic-gravity output is unsupported.</p>
+
+  <h3 id="s5-5"><span class="subno">5.5</span>Periodic boundary conditions (new)</h3>
+  <p>New optional <code>periodic</code> flag (<code>src/fdstag.cpp:914</code>). It is checked for compatibility at startup (<code>src/bc.cpp:755-780</code>) and will abort with a clear message if combined with an incompatible option. The guards (verbatim):</p>
+  <ul class="guards">
+    <li>Periodic condition requires no-slip on bottom boundary</li>
+    <li>Periodic condition is incompatible with no-slip on left and right boundaries</li>
+    <li>Periodic condition is incompatible with xx and xy background strain rates</li>
+    <li>Periodic condition is incompatible with boundary velocity (bvel_face)</li>
+    <li>Periodic condition is incompatible with fixed phase (fix_phase) / fixed cells (fix_cell)</li>
+  </ul>
+  <p>See <code>examples/PeriodicFreeSurface/</code> for a working setup.</p>
+  <div class="note">
+    <span class="note-label">Not a breaking change</span>
+    <p>But note: <code>act_temp_diff</code>, <code>act_steady_temp</code>, <code>Plume_Phase_Mantle</code>, and <code>Adjoint_FieldSensitivity</code> exist in <em>both</em> versions — they are <strong>not</strong> new in v3.0.0.</p>
+  </div>
+</section>
+
+<!-- ==================== 6 ==================== -->
+<section id="s6" aria-labelledby="h-s6">
+  <h2 id="h-s6"><span class="secno">§6</span>Tests &amp; examples</h2>
+
+  <h3 id="s6-1"><span class="subno">6.1</span>Directory renaming</h3>
+  <p>Test directories are now zero-padded and a few were renumbered:</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>v2.2.1</th><th>v3.0.0</th></tr></thead>
+      <tbody>
+        <tr><td><code>t1_FB1_Direct</code> … <code>t9_PhaseDiagrams</code></td><td><code>t01_FB1_Direct</code> … <code>t09_PhaseDiagrams</code></td></tr>
+        <tr><td><code>t34_TopoDiffusion</code></td><td><code>t35_TopoDiffusion</code></td></tr>
+        <tr><td><code>t34_spatially_limited_erosion</code></td><td><code>t36_spatially_limited_erosion</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 id="s6-2"><span class="subno">6.2</span>Expected-output files renamed</h3>
+  <p>The core-count / build suffix was dropped from <code>.expected</code> filenames:</p>
+  <figure class="code">
+    <figcaption><span class="tag">renames</span></figcaption>
+    <pre>Passive_tracer-2D_p1.expected        →  Passive_tracer-2D.expected
+t14_1D_VP_Direct_opt-p1.expected     →  1D_VP_Direct_opt.expected
+PhaseTransitions-FreeSlip_p1.expected →  PhaseTransitions-FreeSlip.expected</pre>
+  </figure>
+  <p>If you have downstream CI or scripts that reference the old <code>-pN</code> names, update them.</p>
+
+  <h3 id="s6-3"><span class="subno">6.3</span>Running the suite</h3>
+  <p>Unchanged entry point, but <code>test/start_tests.jl</code> now builds <strong>both</strong> <code>opt</code> and <code>deb</code> before running, so <code>make test</code> compiles for you:</p>
+  <figure class="code">
+    <figcaption><span class="tag">shell</span></figcaption>
+    <pre>cd test
+make test                                     <span class="cm"># compiles opt+deb, runs full suite</span>
+julia --project=../. start_tests.jl           <span class="cm"># equivalent</span>
+julia --project=../. start_tests.jl is64bit   <span class="cm"># 64-bit integer build</span>
+julia --project=../. start_tests.jl use_dynamic_lib</pre>
+  </figure>
+  <p>The v2.2.1 <code>no_superlu</code> argument is gone; test-set names inside <code>runtests.jl</code> use the new zero-padded directory names.</p>
+
+  <h3 id="s6-4"><span class="subno">6.4</span>Passive-tracer output <span class="pr">post-release</span></h3>
+  <p>Passive-tracer output now writes <strong>one <code>.vtu</code> file per time step</strong> (PR <a href="https://github.com/UniMainzGeo/LaMEM/pull/70">#70</a>) instead of the older single-series layout. If you have post-processing that globs passive-tracer output, expect one file per step now. Some direct-solver types in the test suite were also retuned (<code>mumps</code>↔<code>superlu_dist</code>) because a few tests are sensitive to the factorization backend — relevant if you run the suite on a non-x86 platform.</p>
+</section>
+
+<!-- ==================== 7 ==================== -->
+<section id="s7" aria-labelledby="h-s7">
+  <h2 id="h-s7"><span class="secno">§7</span>For people who patched the source</h2>
+  <p>If you carry local C++ modifications, expect to rewrite them:</p>
+  <ul>
+    <li><strong>Error handling:</strong> every <code>ierr = Foo(); CHKERRQ(ierr);</code> became <code>PetscCall(Foo());</code>. v3.0.0 contains <strong>zero</strong> <code>CHKERRQ</code> (v2.2.1 had ~4000). Port your patches to the <code>PetscCall(...)</code> form; MPI calls use <code>PetscCallMPI(...)</code>.</li>
+    <li><strong>Integer types cleaned up</strong> <span class="pr">post-release</span>: <code>PetscMPIInt</code> was removed from LaMEM data structures and integer types/formatting were made consistent so the tree compiles cleanly in <strong>64-bit integer mode</strong> (<code>start_tests.jl … is64bit</code>). If your patch stored ranks/counts as <code>PetscMPIInt</code> in a LaMEM struct, switch to <code>PetscInt</code> and cast only at the MPI call site.</li>
+    <li><strong>C++17 + strict warnings:</strong> the build adds <code>-Wconversion</code>, <code>-Wshorten-64-to-32</code>, <code>-Wnon-virtual-dtor</code>, <code>-Wformat=2</code>, and more. Implicit narrowing that compiled silently before may now warn (and CI treats the tree as warning-clean). Watch <code>PetscInt</code>↔<code>int</code>↔<code>size_t</code> conversions especially.</li>
+    <li><strong>New solver files:</strong> <code>options.cpp/h</code>, <code>matFree.cpp/h</code>, <code>matData.cpp/h</code>, <code>matBFBT.cpp</code>, <code>matAux.cpp</code>. If you touched residual/Jacobian assembly and use matrix-free operators, mirror changes into <code>matFree.cpp</code>.</li>
+    <li><strong>Removed files:</strong> <code>gravity.cpp/h</code>, <code>Makefile.in</code>. Remove references.</li>
+    <li><strong>PETSc version guards:</strong> use <code>PETSC_VERSION_LT(3, 24, 0)</code> / <code>(3, 25, 0)</code> if you need to support the full 3.19–3.25 range (see <code>src/options.cpp:65</code>).</li>
+  </ul>
+</section>
+
+<!-- ==================== 8 ==================== -->
+<section id="s8" aria-labelledby="h-s8">
+  <h2 id="h-s8"><span class="secno">§8</span>Pitfalls &amp; troubleshooting</h2>
+  <p>There are <strong>two failure modes</strong> when you run a v2.2.1 file under v3.0.0, and one is much more dangerous than the other.</p>
+
+  <div class="pitfall silent">
+    <div class="pitfall-head">
+      <span class="glyph" aria-hidden="true">⚠</span>
+      <span class="badge">Silent — the important one</span>
+      <span>Pitfall #1: removed solver params are ignored</span>
+    </div>
+    <div class="pitfall-body">
+      <p>Running an <strong>unmodified</strong> v2.2.1 falling-block input under the v3.0.0 binary <strong>succeeds with exit code 0</strong> — no error, no warning. But:</p>
+      <ul>
+        <li><code>SolverType</code>, <code>DirectSolver</code>, <code>DirectPenalty</code>, and the <code>MG*</code> params are silently dropped (they are no longer parsed).</li>
+        <li>LaMEM substitutes its <strong>default</strong> solver preset. In the tested case the file asked for <code>DirectPenalty = 1e5</code> but the run actually used the default <code>penalty = 1.0e3</code> (<code>-jp_pgamma 1000</code>).</li>
+        <li>The raw flags inside <code>&lt;PetscOptionsStart&gt;</code> <em>are</em> still applied.</li>
+      </ul>
+      <p><strong>Consequence:</strong> your model appears to work, but may run with a different solver / penalty / tolerances than you intended, changing convergence and possibly results. <strong>There is no diagnostic.</strong> You must audit each <code>.dat</code> solver block by hand and port it to <code>&lt;SolverOptionsStart&gt;</code> per <a href="#s4-3">§4.3</a>.</p>
+    </div>
+  </div>
+
+  <div class="pitfall loud">
+    <div class="pitfall-head">
+      <span class="badge">Loud — easy to fix</span>
+      <span>Pitfall #2: grid &amp; required-parameter errors</span>
+    </div>
+    <div class="pitfall-body">
+      <p>These abort immediately with a clear PETSc error — easy to spot and fix:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td><code>Less than two cells are specified in the y - direction</code></td><td><code>nel_y = 1</code> (or any dir &lt; 2)</td><td>set to <code>≥ 2</code> (<a href="#s5-1">§5.1</a>)</td></tr>
+            <tr><td><code>Non-unit bias ratios are deprecated (bias_x)</code></td><td>graded mesh bias</td><td>use uniform segments (<a href="#s5-2">§5.2</a>)</td></tr>
+            <tr><td><code>act_temp_diff = 1 and -snes_type ksponly are incompatible</code></td><td>old linear-solve flag + thermal diffusion</td><td>use <code>set_linear_problem = 1</code>, or <code>-snes_max_it 1</code> (<code>src/nlsolve.cpp:117</code>)</td></tr>
+            <tr><td><code>Periodic condition is incompatible with …</code></td><td><code>periodic</code> + unsupported option</td><td>remove the conflicting option (<a href="#s5-5">§5.5</a>)</td></tr>
+            <tr><td>Required-parameter-not-found on <code>exz_strain_rates</code></td><td>removed background shear</td><td>drop it (<a href="#s5-3">§5.3</a>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="note-label">Migrating a file?</span>
+    <p>Work through the <a href="#quickcheck">Quick self-check</a> at the top of this guide (<a href="#s0">§0</a>) — it turns every pitfall above into a concrete grep-and-fix step.</p>
+  </div>
+</section>
+
+<!-- ==================== Appendix ==================== -->
+<section id="appendix" aria-labelledby="h-appendix">
+  <h2 id="h-appendix"><span class="secno">§A</span>Appendix: parameter change reference</h2>
+
+  <p><strong>Removed in v3.0.0</strong> (verified absent from <code>src/</code>):</p>
+  <div class="chip-cloud removed">
+    <code>SolverType</code> <code>DirectSolver</code> <code>DirectPenalty</code> <code>MGLevels</code>
+    <code>MGCoarseSolver</code> <code>MGSmoother</code> <code>MGSweeps</code> <code>MGJacobiDamp</code>
+    <code>MGRedundantNum</code> <code>MGRedundantSolver</code> <code>exz_strain_rates</code>
+    <code>exz_time_delims</code> <code>eyz_strain_rates</code> <code>eyz_time_delims</code>
+  </div>
+
+  <p><strong>Added in v3.0.0</strong> (verified present only in v3.0.0 <code>src/</code>):</p>
+  <div class="chip-cloud added">
+    <code>stokes_solver</code> <code>direct_solver_type</code> <code>penalty</code> <code>coarse_solver</code>
+    <code>coarse_tolerances</code> <code>init_thermal_solver</code> <code>skip_defaults</code>
+    <code>linear_tolerances</code> <code>nonlinear_tolerances</code> <code>block_tolerances</code>
+    <code>thermal_tolerances</code> <code>smoother_type</code> <code>smoother_ksp</code>
+    <code>smoother_pc</code> <code>smoother_omega</code> <code>smoother_damping</code>
+    <code>picard_to_newton</code> <code>periodic</code>
+  </div>
+  <p>plus internal knobs (<code>num_mg_levels</code>, <code>num_mat_free_levels</code>, <code>coarse_num_cpu</code>, <code>subdomain_*</code>, …) documented in <code>info/options/solver_options.txt</code>.</p>
+</section>
+
+<footer class="doc-foot">
+  <p>Guide generated by comparing the local <code>LaMEM_v221</code> and <code>LaMEM_v300</code> trees (v3.0.0 at HEAD <code>eaf75d4b</code>, 2026-06-15) and by executing v2.2.1 inputs under the v3.0.0 <code>bin/opt/LaMEM</code> binary. Post-release deltas (<code>v3.0.0</code> tag → HEAD) were reconciled from <code>git log v3.0.0..HEAD</code> and are flagged <span class="pr">post-release</span> throughout.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+(function () {
+  // Scrollspy: highlight the TOC entry for the section nearest the top.
+  var links = Array.prototype.slice.call(document.querySelectorAll("nav.toc li a"));
+  var byId = {};
+  links.forEach(function (a) {
+    var id = a.getAttribute("href").slice(1);
+    byId[id] = a;
+  });
+  var sections = Object.keys(byId)
+    .map(function (id) { return document.getElementById(id); })
+    .filter(Boolean);
+
+  function setCurrent(id) {
+    links.forEach(function (a) { a.removeAttribute("aria-current"); });
+    if (byId[id]) byId[id].setAttribute("aria-current", "true");
+  }
+
+  if ("IntersectionObserver" in window) {
+    var visible = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+      for (var i = 0; i < sections.length; i++) {
+        if (visible[sections[i].id]) { setCurrent(sections[i].id); return; }
+      }
+    }, { rootMargin: "-10% 0px -70% 0px", threshold: 0 });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+
+  // Fallback + initial state on hash navigation.
+  if (location.hash && byId[location.hash.slice(1)]) {
+    setCurrent(location.hash.slice(1));
+  } else if (sections.length) {
+    setCurrent(sections[0].id);
+  }
+})();
+</script>
+</body>
+</html>
