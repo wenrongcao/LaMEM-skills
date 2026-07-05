@@ -21,6 +21,7 @@ and handle the git/PR workflow without re-deriving conventions each session.
 | [`lamem-test-creator`](lamem-test-creator/SKILL.md) | Create, register, and run LaMEM Julia tests; expected-file generation; common `.dat` pitfalls. |
 | [`lamem-github-workflow`](lamem-github-workflow/SKILL.md) | Commit / branch / push / pull-request workflow for LaMEM, keeping commits clean and PR descriptions structured. |
 | [`lamem-migration-notes`](lamem-migration-notes/SKILL.md) | Produce a migration guide / release notes between two LaMEM versions — validated against both source trees, delivered as Markdown with an optional standalone HTML page. Ships bundled example templates. |
+| [`lamem-skill-maintenance`](lamem-skill-maintenance/SKILL.md) | Meta-skill: audit and refresh these skills against the current upstream HEAD (freshness judged by commit SHA, not the frozen `Version : 3.0.0` string), then propagate fixes back to this repo. |
 
 ## Usage
 
@@ -30,7 +31,7 @@ project's `.claude/` directory or your user-level skills directory:
 
 ```bash
 # project-local (per LaMEM checkout)
-cp -r lamem-codebase lamem-test-creator lamem-github-workflow lamem-migration-notes /path/to/LaMEM/.claude/
+cp -r lamem-codebase lamem-test-creator lamem-github-workflow lamem-migration-notes lamem-skill-maintenance /path/to/LaMEM/.claude/
 ```
 
 Claude loads a skill when a request matches its `description` triggers (e.g. mentioning LaMEM, PETSc
