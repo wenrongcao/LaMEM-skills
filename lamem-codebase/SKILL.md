@@ -15,7 +15,7 @@ LaMEM (v3.0.0) is a parallel 3D geodynamics code for thermo-mechanical processes
 
 ```
 src/         C++ core source + LaMEM_C.jl module
-test/        35 Julia-driven test cases (t01_…–t35_…)
+test/        36 Julia-driven test cases (t01_…–t36_…)
 examples/    Pre-configured model setups (BuiltInSetups, Localization, …)
 doc/         Documenter.jl HTML documentation source
 info/        Installation notes, solver options reference, ParaView tips

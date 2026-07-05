@@ -5,7 +5,13 @@ A small collection of [Claude Code](https://claude.com/claude-code) **skills** f
 3D geodynamics code built on PETSc.
 
 These skills give Claude project-specific knowledge so it can navigate the codebase, add and run tests,
-and handle the git/PR workflow without re-deriving conventions each session. They target **LaMEM v3.0.0**.
+and handle the git/PR workflow without re-deriving conventions each session.
+
+> **Target version:** LaMEM **v3.0.0**, tracked at upstream commit **`eaf75d4b`** (2026‑06‑15) — the
+> `v3.0.0` tag (`e5066169`) plus 46 later commits merged to `master` (`git describe` →
+> `v3.0.0-46-geaf75d4b`). The printed `Version : 3.0.0` string does **not** advance with those commits,
+> so the commit SHA above — not the version number — is the real reference point for how current these
+> skills are.
 
 ## Skills
 
@@ -32,9 +38,9 @@ solvers, FDSTAG, adding a test, or preparing a PR).
 
 ## Notes
 
-- Written against **LaMEM v3.0.0**. Because upstream keeps committing to `master` under the same
-  `Version : 3.0.0` string, treat the upstream commit SHA — not the version — as the real reference
-  point when these skills get out of date.
+- Written against **LaMEM v3.0.0** at upstream commit **`eaf75d4b`** (2026‑06‑15). Because upstream
+  keeps committing to `master` under the same `Version : 3.0.0` string, treat the upstream commit SHA —
+  not the version — as the real reference point when these skills get out of date.
 - Contributions / corrections welcome.
 
 ## Contributors

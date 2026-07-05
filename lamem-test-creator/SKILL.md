@@ -11,7 +11,7 @@ A skill for creating and registering new tests in the LaMEM Julia test suite (v3
 
 LaMEM tests live in `test/t<N>_<Name>/` directories and are driven by Julia's `@testset` blocks in `test/runtests.jl`. Each test runs a LaMEM simulation and compares log output against a pre-recorded `.expected` file using numerical tolerances.
 
-Current numbering goes up to `t35_TopoDiffusion`; the next new test is `t36_…`.
+Current numbering goes up to `t36_spatially_limited_erosion`; the next new test is `t37_…`.
 
 ---
 
