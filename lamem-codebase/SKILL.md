@@ -5,7 +5,7 @@ description: Provides deep knowledge of the LaMEM (Lithosphere and Mantle Evolut
 
 # LaMEM Codebase Guide
 
-LaMEM (v3.0.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
+LaMEM (v3.1.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
 
 **Stack:** C++17 core · PETSc 3.19–3.25 · MPI · Julia test framework & integration
 
@@ -22,7 +22,7 @@ info/        Installation notes, solver options reference, ParaView tips
 scripts/     bash/ and julia/ post-processing utilities
 ```
 
-Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.0.0`).
+Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.1.0`).
 
 ---
 
@@ -41,6 +41,19 @@ make mode=deb all        # Debug build       → bin/deb/LaMEM
 make mode=opt dylib      # Dynamic library (Julia integration) → lib/opt/LaMEMLib.dylib
 make mode=opt clean_all  # Clean artifacts
 ```
+
+### Static checks from `src/` (v3.1.0)
+```bash
+make format            # reformat *.cpp/*.h in place per .astylerc (astyle required)
+make checkformat       # fail if `make format` would change anything (CI gate)
+make checkgetrestore   # pair every PETSc *GetArray*/*RestoreArray* within its function
+make check             # checkformat + checkgetrestore
+```
+Run `make check` before opening a PR — both are enforced upstream. `checkgetrestore` runs
+`scripts/petsc_getrestore_check.jl`; `.astylerc` pins Allman braces, tab indent (width 4), and
+`convert-tabs` (leading indent tabs, in-line alignment spaces). Note that astyle flattens
+hand-aligned continuation lines unless they sit inside parentheses — hoist long expressions into
+named temporaries rather than fighting it.
 
 **Build details:** Single `Makefile` (no separate `Makefile.in`). C++17, very strict warnings (`-Wall -Wextra -Wconversion -Wnon-virtual-dtor …`). Auto-detects compiler (gcc/clang/icpx). Builds `liblamem.a` then links `LaMEM`. Dependency tracking via `.d` files; force-rebuild via `dep/<mode>/makefile.stat`.
 
@@ -91,6 +104,38 @@ Marker↔Grid coupling:
 
 ---
 
+## What's New in v3.1.0 (vs v3.0.x)
+
+### No more global buffers (PR #79)
+The shared scratch vectors that used to hang off `JacRes`/`FDSTAG` (`lbcen`, `lbcor`, … ) are gone.
+Code that needs scratch space now borrows and returns it explicitly:
+
+```c
+FDSTAGGetLocalVectorFace  (fs, &vx,  &vy,  &vz);   // ... FDSTAGRestoreLocalVectorFace
+FDSTAGGetGlobalVectorFace (fs, &vx,  &vy,  &vz);   // ... FDSTAGRestoreGlobalVectorFace
+FDSTAGGetLocalVectorEdge  (fs, &vxy, &vxz, &vyz);  // ... FDSTAGRestoreLocalVectorEdge
+FDSTAGGetGlobalVectorEdge (fs, &vxy, &vxz, &vyz);  // ... FDSTAGRestoreGlobalVectorEdge
+FDSTAGGetLocalVectorCenter(fs, &vxx, &vyy, &vzz);  // ... FDSTAGRestoreLocalVectorCenter
+DMGetLocalVectorClean     (dm, &g);                // zeroed local vector
+```
+Also new: `FDSTAGCombineVectors` / `FDSTAGSplitVectors` (block ↔ monolithic) and
+`FDSTAGSetEdgeCornerCenter` / `FDSTAGSetEdgeCornerFaces`. **Every Get must be matched by its
+Restore inside the same function** — `make checkgetrestore` enforces this.
+
+### Enforced source formatting
+`src/.astylerc` + `make format` / `make checkformat` (see Build System above). New code must be
+astyle-clean before it will pass upstream checks.
+
+### `PetscCall` everywhere
+`CHKERRQ` no longer appears anywhere in `src/`. Use `PetscCall` / `PetscCallMPI`.
+
+### Test framework overhaul
+Test selectors (`make test 05 12-17`), explicit modes (`make test` / `work` / `update`), plus
+`make grind` (Valgrind), `make report`, and `make check` (PETSc object create/destroy balance).
+See the `lamem-test-creator` skill.
+
+---
+
 ## What's New in v3.0.0 (vs v2.2.x)
 
 ### Matrix-free linear operators (`matFree.cpp/h`, `matData.cpp/h`)
@@ -137,7 +182,7 @@ getScalarParam(fb, _REQUIRED_, "er_rates", surf->erRates, surf->numErPhs, scal->
 ```c
 PetscMalloc() / PetscFree()           // allocation
 DMCreateGlobalVector() / VecDestroy() // vectors
-PetscCall(ierr);  // or  CHKERRQ(ierr);
+PetscCall(...);   // CHKERRQ is fully removed from src/ as of v3.1.0
 ```
 
 ### Grid access (macros from `fdstag.h`)
@@ -219,6 +264,9 @@ For parallel issues: reproduce on 1 → 2 → 4 cores.
 ```bash
 cd test
 make test                                       # compiles LaMEM + runs full suite
+make test 37                                    # run only t37 (selectors: numbers and ranges)
+make update 37                                  # regenerate that test's .expected file
+make check 37                                   # PETSc object creation/destruction balance
 julia --project=../. start_tests.jl             # direct invocation
 julia --project=../. start_tests.jl is64bit     # 64-bit integer build
 julia --project=../. start_tests.jl use_dynamic_lib   # link via PETSc_jll

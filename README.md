@@ -7,11 +7,13 @@ A small collection of [Claude Code](https://claude.com/claude-code) **skills** f
 These skills give Claude project-specific knowledge so it can navigate the codebase, add and run tests,
 and handle the git/PR workflow without re-deriving conventions each session.
 
-> **Target version:** LaMEM **v3.0.0**, tracked at upstream commit **`eaf75d4b`** (2026‑06‑15) — the
-> `v3.0.0` tag (`e5066169`) plus 46 later commits merged to `master` (`git describe` →
-> `v3.0.0-46-geaf75d4b`). The printed `Version : 3.0.0` string does **not** advance with those commits,
-> so the commit SHA above — not the version number — is the real reference point for how current these
-> skills are.
+> **Target version:** LaMEM **v3.1.0**, tracked at upstream commit **`7e7a012e`** (2026‑08‑12) —
+> the 3.1.0 release (`d1a5715e`, "Version update 3.0.2 -> 3.1.0") plus the `buffers` merge (#79).
+> Previously pinned to v3.0.0 at `eaf75d4b` (2026‑06‑15), 54 commits earlier.
+>
+> Upstream did bump the version string this time (3.0.0 → 3.0.1 → 3.0.2 → 3.1.0), but it still
+> lags `master`: many commits land under an unchanged string. The commit SHA above — not the
+> version number — remains the real reference point for how current these skills are.
 
 ## Skills
 
@@ -21,7 +23,7 @@ and handle the git/PR workflow without re-deriving conventions each session.
 | [`lamem-test-creator`](lamem-test-creator/SKILL.md) | Create, register, and run LaMEM Julia tests; expected-file generation; common `.dat` pitfalls. |
 | [`lamem-github-workflow`](lamem-github-workflow/SKILL.md) | Commit / branch / push / pull-request workflow for LaMEM, keeping commits clean and PR descriptions structured. |
 | [`lamem-migration-notes`](lamem-migration-notes/SKILL.md) | Produce a migration guide / release notes between two LaMEM versions — validated against both source trees, delivered as Markdown with an optional standalone HTML page. Ships bundled example templates. |
-| [`lamem-skill-maintenance`](lamem-skill-maintenance/SKILL.md) | Meta-skill: audit and refresh these skills against the current upstream HEAD (freshness judged by commit SHA, not the frozen `Version : 3.0.0` string), then propagate fixes back to this repo. |
+| [`lamem-skill-maintenance`](lamem-skill-maintenance/SKILL.md) | Meta-skill: audit and refresh these skills against the current upstream HEAD (freshness judged by commit SHA, not the version string, which lags `master`), then propagate fixes back to this repo. |
 
 ## Usage
 
@@ -39,9 +41,9 @@ solvers, FDSTAG, adding a test, or preparing a PR).
 
 ## Notes
 
-- Written against **LaMEM v3.0.0** at upstream commit **`eaf75d4b`** (2026‑06‑15). Because upstream
-  keeps committing to `master` under the same `Version : 3.0.0` string, treat the upstream commit SHA —
-  not the version — as the real reference point when these skills get out of date.
+- Written against **LaMEM v3.1.0** at upstream commit **`7e7a012e`** (2026‑08‑12). Because upstream
+  keeps committing to `master` between version bumps, treat the upstream commit SHA — not the
+  version — as the real reference point when these skills get out of date.
 - Contributions / corrections welcome.
 
 ## Contributors

@@ -47,7 +47,7 @@ self-contained, no need to hunt for them elsewhere):
 ## Step 1 — Locate the two versions and resolve commits
 
 Both trees are usually checked out locally (e.g. `/home/<user>/LaMEM_v221` and
-`/home/<user>/LaMEM_v300`). Confirm paths with the user if not obvious.
+`/home/<user>/LaMEM_v310`). Confirm paths with the user if not obvious.
 
 ```bash
 # In the NEW tree — resolve tag vs HEAD:
