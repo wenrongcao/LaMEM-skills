@@ -5,13 +5,18 @@ description: Create, configure, and run LaMEM simulation tests in Julia. Use thi
 
 # LaMEM Test Creator
 
-A skill for creating and registering new tests in the LaMEM Julia test suite (v3.0.0).
+A skill for creating and registering new tests in the LaMEM Julia test suite (v3.1.0).
 
 ## Overview
 
 LaMEM tests live in `test/t<N>_<Name>/` directories and are driven by Julia's `@testset` blocks in `test/runtests.jl`. Each test runs a LaMEM simulation and compares log output against a pre-recorded `.expected` file using numerical tolerances.
 
-Current numbering goes up to `t36_spatially_limited_erosion`; the next new test is `t37_…`.
+Current numbering on `master` goes up to `t36_spatially_limited_erosion`; the next new test is `t37_…`.
+
+> **Check open PRs before claiming a number.** Several in-flight branches can claim the same `t<N>`
+> at once (`t37` was claimed by two open PRs simultaneously). Whoever merges second has to renumber,
+> so verify with `gh pr list --repo UniMainzGeo/LaMEM --state open` and say in your PR description
+> which number you took.
 
 ---
 
@@ -97,7 +102,17 @@ rand_noise = 1
 
 ### Step 4 — Generate the expected output file
 
-The recommended flow is the **`maintenance` mode** in `runtests.jl`: register the test (Step 5) with `create_expected_file=update_expected, clean_dir=clean_files`, then run the suite once with `update_expected = true` to write the reference files, and commit them.
+The recommended flow is the **`update` mode** (v3.1.0): register the test first (Step 5) with
+`create_expected_file=update_expected, clean_dir=clean_files`, then generate only your test's
+reference file and commit it:
+
+```bash
+cd test
+make update 37        # writes t37's .expected; other tests untouched
+make test 37          # re-run normally to confirm it now passes
+```
+
+Selecting the test number matters — a bare `make update` overwrites **every** `.expected` in the suite.
 
 Or run LaMEM manually from the test directory:
 
@@ -120,8 +135,14 @@ Commit the `.expected` file to the repository.
 
 Append a new `@testset` block **inside** the outer `@testset "LaMEM Testsuite"` (before the final `end`). Always close the previous `@testset` with its own `end` before opening a new one — a missing `end` silently nests the new block and it won't appear as its own row in the summary.
 
+**v3.1.0: wrap the testset in `should_run_test(...)`.** Every testset sits inside an
+`if should_run_test("t<N>_<Name>")` guard so the selectors below can skip it. Omitting the guard
+means your test runs on *every* invocation, including `make test 05`. Note the resulting **two**
+`end`s — one for the `@testset`, one for the `if`.
+
 ```julia
 #---------------------------------------------------------------------------
+if should_run_test("t<N>_<Name>")
 @testset "t<N>_<Name>" begin
     cd(test_dir)
     dir = "t<N>_<Name>"
@@ -148,11 +169,14 @@ Append a new `@testset` block **inside** the outer `@testset "LaMEM Testsuite"` 
         create_expected_file = update_expected,
         clean_dir            = clean_files)
 end
+end
 ```
 
 **Key points:**
 - `expectedFile` is passed **without** the `.expected` extension (`perform_lamem_test` adds it).
-- `update_expected` and `clean_files` are the standard flags defined at the top of `runtests.jl` — always pass them through.
+- `update_expected` and `clean_files` are derived from the `mode=` flag at the top of `runtests.jl` — always pass them through.
+- The guard name must match the `t<N>_` prefix: `should_run_test` parses it with `^t0*(\d+)_`. A name it can't parse fails open (always runs).
+- Don't hand-roll cleanup of generated inputs. `clean_dir=true` already deletes `*.bin`, `*.out`, `*.log`, `markers*`, and `restart` from the test directory — an extra `rm(joinpath(dir, topo_file))` will fail with `ENOENT`.
 - After running the suite, confirm the new test appears as its **own row** in the Test Summary.
 
 ---
@@ -169,7 +193,8 @@ The `<TestKey>` used for the `.expected` filename does not need the `t<N>_` pref
 
 ```bash
 cd test
-make test
+make test 37     # just your test, while iterating
+make test        # full suite, before pushing
 ```
 
 Check the **Test Summary** table; the new test must appear as its **own row** with the expected pass count.
@@ -193,18 +218,52 @@ julia --project=../. start_tests.jl is64bit           # 64-bit integer build
 ```
 
 The driver runs `Pkg.test("LaMEM_C")` (the project is named `LaMEM_C`, not `LaMEM`).
-`make clean` removes basic test output; `make purge` also wipes logs.
 
-### Maintenance mode (regenerating `.expected` files)
+### Makefile targets (v3.1.0)
 
-`runtests.jl` defines a `maintenance` block at the top:
+| Target | Effect |
+|--------|--------|
+| `make test` | Run tests, delete generated output afterwards (`mode=test`) |
+| `make work` | Run tests, **keep** generated files for inspection (`mode=work`) |
+| `make update` | Run tests and **OVERWRITE** the `.expected` files (`mode=update`) |
+| `make grind` | Run under Valgrind, then check the report for leaks / uninitialised values |
+| `make report` | Re-check `.xml` from a previous `make grind` without re-running it |
+| `make check` | Run with `-log_view`; fail on any PETSc object creation/destruction mismatch |
+| `make clean` | Remove leftover generated files |
 
-```julia
-maintenance     = true
-update_expected = true    # set to true to OVERWRITE all .expected files
+There is no `make purge`. `make check` is a cheap leak gate worth running on any test that touches
+PETSc objects.
+
+### Test selectors
+
+Any bare number or hyphenated range after the target selects a subset; everything else
+(`is64bit`, `valgrind`, …) is ignored as a selector:
+
+```bash
+make test 01 05 32       # only t01, t05, t32
+make test 03-07 11       # a range plus a single test
+make update 37           # regenerate only t37's expected file
+make check 12-17         # object-balance check on a range
 ```
 
-Run the suite once with `update_expected = true`, inspect the diff, then commit. **Always reset both flags to `false` before merging.**
+With no selector, the whole suite runs. Selection is implemented by `parse_test_selectors` /
+`should_run_test` at the top of `runtests.jl`.
+
+### Regenerating `.expected` files
+
+**Changed in v3.1.0.** The old hand-edited `maintenance = true` / `update_expected = true` block at
+the top of `runtests.jl` is gone. The mode now comes from the Makefile target, so there are no flags
+left to forget to reset before committing:
+
+```bash
+make update 37     # regenerate one test's expected file
+make update        # regenerate ALL of them -- rarely what you want
+```
+
+Internally `runtests.jl` parses `mode=test|work|update` from `ARGS` into `test_mode`, and derives
+`update_expected = (test_mode == "update")` and `clean_files = (test_mode != "work")`. Inspect the
+resulting diff before committing: an `.expected` file records the full log, so an unintended
+numerical change shows up there.
 
 ---
 
@@ -226,7 +285,9 @@ Run the suite once with `update_expected = true`, inspect the diff, then commit.
 | `split_sign` | String | Separator used when parsing log values (default `"="`) |
 | `debug` | Bool | Print output without comparing |
 | `create_expected_file` | Bool | Write `.expected` instead of comparing |
-| `clean_dir` | Bool | Delete `Timestep*/`, `*.pvd`, etc. after the test (default `true`) |
+| `clean_dir` | Bool | Clean the test dir afterwards (default `true`) — removes `Timestep*/`, `*.pvd`, `*.bin`, `*.out`, `*.log`, `markers*`, `restart` |
+| `valgrind` | Bool | Run under Valgrind (defaults to the `use_valgrind` global, i.e. `make grind`) |
+| `memcheck` | Bool | Run with `-log_view` and check PETSc object create/destroy balance (defaults to `use_memcheck`, i.e. `make check`) |
 
 ---
 
@@ -237,7 +298,7 @@ Run the suite once with `update_expected = true`, inspect the diff, then commit.
 | `run_lamem_local_test()` | Execute a LaMEM simulation (with optional MPI) |
 | `CreatePartitioningFile_local()` | Generate processor partitioning for parallel runs |
 | `compare_logfiles()` | Numerically compare two log files |
-| `clean_test_directory()` | Remove `*.out`, `*.vts`, `ProcessorPartitioning*`, etc. |
+| `clean_test_directory()` | Remove `*.out`, `*.log`, `*.bin`, `*.vts`, `markers*`, `restart`, `ProcessorPartitioning*`, etc. |
 
 IO helpers (markers, topography, VTR/VTS reads) live in `test/julia/IO_functions.jl`.
 
@@ -276,7 +337,7 @@ rm -rf markers/ Timestep_* *.vts *.pvd *.out output* LaMEM_ModelSetup*
 | SNES divergence with zero gravity | Use `gravity = 0 0 -9.81` instead of `gravity = 0 0 0` |
 | Direct solver instability / `DIVERGED_NANORINF` at iteration 0 | Set `penalty` in `<SolverOptionsStart>` (e.g. `penalty = 1e2`); applies to both `coupled_direct` and `block_direct` |
 | "Requested number of multigrid levels exceeds maximum possible" | Reduce MG levels or coarsen the grid |
-| "Less than two cells are specified in the &lt;dir&gt; - direction" (`fdstag.cpp:71`) | v3.0.0 FDSTAG requires **≥ 2 cells in every direction**. For a 2D (x-z) setup set `nel_y = 2` (older LaMEM allowed `nel_y = 1`). Same applies to `nel_x` / `nel_z`. |
+| "Less than two cells are specified in the &lt;dir&gt; - direction" (`fdstag.cpp:71`) | FDSTAG (since v3.0.0) requires **≥ 2 cells in every direction**. For a 2D (x-z) setup set `nel_y = 2` (older LaMEM allowed `nel_y = 1`). Same applies to `nel_x` / `nel_z`. |
 
 ### `ADVMarkCrossFreeSurf` — marker availability at the free surface
 
@@ -300,7 +361,7 @@ Incorrect sedimentation phase
 
 `read_LaMEM_inputfile` (used by `GeophysicalModelGenerator`) cannot parse inline `# comments` on parameter value lines. Strip all inline comments from value lines before calling this function.
 
-### Periodic BC compatibility (v3.0.0)
+### Periodic BC compatibility (since v3.0.0)
 
 When `periodic = 1` is set in `fdstag`, LaMEM aborts at startup if any of these are also set:
 - `noslip` on left/right (must be no-slip on bottom instead)
