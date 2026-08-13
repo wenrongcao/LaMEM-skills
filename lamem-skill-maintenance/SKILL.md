@@ -8,14 +8,14 @@ description: Meta-skill for keeping the LaMEM Claude Code skills themselves up t
 A skill for auditing and refreshing the other LaMEM skills (`lamem-codebase`,
 `lamem-test-creator`, `lamem-github-workflow`, `lamem-migration-notes`) so their
 factual claims stay true as the LaMEM codebase evolves. The skills live in
-`/home/wenrongc/LaMEM_v300/.claude/skills/` and are mirrored to the public repo
+`/home/wenrongc/LaMEM_v310/.claude/skills/` and are mirrored to the public repo
 `https://github.com/wenrongcao/LaMEM-skills` (default branch `master`).
 
 **The central insight: freshness is judged by the upstream COMMIT SHA, not the
-version number.** The skills target LaMEM v3.0.0, but the codebase keeps
-receiving commits under the *same* `Version : 3.0.0` string. A skill can be
-badly stale while the printed version is unchanged. Always compare against
-`git describe --tags` / `git log <tag>..HEAD`, never against `Version : 3.0.0`.
+version number.** The skills target LaMEM v3.1.0. Upstream does bump the version
+(3.0.0 → 3.0.1 → 3.0.2 → 3.1.0), but it always lags `master`: dozens of commits
+land under an unchanged string, so a skill can be badly stale while the printed
+version looks current. Always compare against the SHA, never the version string.
 
 ---
 
@@ -25,11 +25,21 @@ Resolve exactly which commit the codebase is at and how far it has moved past
 the release tag:
 
 ```bash
-git -C /home/wenrongc/LaMEM_v300 rev-parse --short HEAD
-git -C /home/wenrongc/LaMEM_v300 log -1 --format=%ci HEAD
-git -C /home/wenrongc/LaMEM_v300 describe --tags            # e.g. v3.0.0-46-geaf75d4b
-git -C /home/wenrongc/LaMEM_v300 rev-parse --short v3.0.0^{commit}
-git -C /home/wenrongc/LaMEM_v300 log v3.0.0..HEAD --oneline --merges   # post-tag PRs
+git -C /home/wenrongc/LaMEM_v310 rev-parse --short master
+git -C /home/wenrongc/LaMEM_v310 log -1 --format=%ci master
+git -C /home/wenrongc/LaMEM_v310 describe --tags master     # e.g. v3.0.0-46-geaf75d4b
+```
+
+**If the clone has no tags** (`git describe` → *"No names found"*, common for a
+fresh `git clone` of a fork), fall back to the version-bump commits and to the
+SHA recorded in the skills README:
+
+```bash
+# find the release boundary without tags
+git -C /home/wenrongc/LaMEM_v310 log --oneline --all --grep="[Vv]ersion" | head
+# drift window = last audited SHA (from README pin) .. master
+git -C /home/wenrongc/LaMEM_v310 log <last-audited-sha>..master --oneline --merges
+git -C /home/wenrongc/LaMEM_v310 log <last-audited-sha>..master --oneline | wc -l
 ```
 
 The merge commits since the tag are exactly the changes most likely to have
@@ -52,14 +62,27 @@ patterns:
 | **Solver preset names/defaults** | `src/options.h` (`stokes_solver`, `penalty`, `direct_solver_type`) |
 | **Test-harness param tables** | `test/test_utils.jl` (`perform_lamem_test` signature and defaults) |
 
-**Real example from the last audit:** the only stale claim was an enumerated
-count — the skills said 35 tests / next = `t36`, but PR #69 had added
-`t36_spatially_limited_erosion`, so the truth was 36 tests / next = `t37`.
-Grep/`ls` the actual thing; never eyeball.
+**Real example (v3.0.0 → v3.1.0 audit, 54 commits of drift):** most breakage was
+in *procedures*, not counts — `runtests.jl` had replaced its `maintenance = true` /
+`update_expected = true` block with `mode=` targets, `make purge` no longer existed,
+every `@testset` now needed a `should_run_test(...)` wrapper, and `CHKERRQ` had been
+removed from `src/` entirely. **Run the documented commands, don't just read them**:
+a stale procedure looks perfectly plausible on the page. The audit before that caught
+an enumerated count (35 tests / next `t36` vs the real 36 / `t37`). Grep, `ls`, and
+execute the actual thing; never eyeball.
 
-**migration-notes skill specifics:** additionally confirm its bundled
-`examples/*.md` / `*.html` are still byte-identical to the repo-root guide
-(`diff -q`), and that HEAD hasn't moved past what that guide documents.
+**Watch for contested test numbers.** "Next test number" can be claimed by more than
+one in-flight PR at once — check open PRs, not just the merged tree:
+`gh pr list --repo UniMainzGeo/LaMEM --state open`.
+
+**migration-notes skill specifics:** the shipped guide now lives at
+`doc/src/man/Upgrade_v2.2.1_to_v3.0.0.md` in the LaMEM repo. The bundled
+`examples/*.md` is **intentionally not byte-identical** to it: the repo copy is
+rendered by Documenter.jl and uses `[§4](@ref "…")` cross-references plus an
+"Upgrading from…" title, while the bundled copy is standalone Markdown with plain
+`#anchor` links. Diff them to confirm only those two classes of difference (title
+line and link syntax) and that the body/section count still matches — not that the
+files are identical.
 
 ---
 
@@ -116,17 +139,23 @@ Additional rules:
 
 ## Common Pitfalls
 
-### Trusting the `Version : 3.0.0` string
+### Trusting the printed version string
 
-It does not advance as `master` moves; a skill can be weeks stale while the
-version string is unchanged. Always diff against the SHA (`git describe`,
-`git log <tag>..HEAD`).
+It advances only at release commits, not as `master` moves; a skill can be weeks
+stale while the version looks current (v3.1.0 landed 54 commits after the last
+audit, most of them under an older string). Always diff against the SHA.
 
 ### Missing enumerated-count drift
 
-Test counts, "next test number", file lists — the most common *real*
-staleness. Grep/`ls` the actual thing, never eyeball. (This was the only stale
-claim in the last audit: PR #69 added `t36_spatially_limited_erosion`.)
+Test counts, "next test number", file lists — grep/`ls` the actual thing, never
+eyeball. (PR #69 adding `t36_spatially_limited_erosion` was the only stale claim
+in the v3.0.0 audit.)
+
+### Documented procedures that silently stopped working
+
+The bigger risk than counts. A workflow block (`maintenance = true`, `make purge`,
+a bare `@testset` template) keeps reading correctly long after upstream replaced it.
+Actually run the commands the skill tells the user to run.
 
 ### `file:line` drift
 
