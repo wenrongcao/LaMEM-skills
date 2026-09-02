@@ -89,6 +89,20 @@ Use the user's actual identity (e.g., the GitHub email/username they want associ
 
 Do **not** add `Co-Authored-By: Claude ...` unless the user explicitly asks for it.
 
+The same goes for the pull request: no *Generated with Claude Code* footer, no
+session link, no Claude attribution anywhere in the PR title or body. The commit
+author and the PR should show the user alone.
+
+If attribution has already been pushed, strip it rather than leaving it in place:
+
+```bash
+# drop the trailers, keep the rest of the message
+git log -1 --pretty=%B | grep -v -E '^Co-Authored-By: Claude|^Claude-Session:' > /tmp/msg
+git -c user.email="<email>" -c user.name="<name>" commit --amend -F /tmp/msg
+git push --force-with-lease
+gh pr edit <N> --repo <owner>/<repo> --body-file <cleaned-body.md>
+```
+
 ---
 
 ## Step 5 — Write the commit message
@@ -124,7 +138,48 @@ If a single change touches several distinct concerns, **make multiple commits**.
 
 ---
 
-## Step 6 — Push the branch
+## Step 6 — Run the source checks
+
+CI runs `make check` in `src/`. It gates two things, and a PR failing either is
+sent straight back:
+
+```bash
+cd src
+make check      # checkformat (astyle) + checkgetrestore (PETSc Get/Restore pairing)
+```
+
+**The astyle version must be exactly 3.1.** `src/Makefile` pins
+`ASTYLE_VERSION = 3.1`, and CI installs that version from Ubuntu 22.04
+(`apt-get install astyle` gives 3.1-2build1). Different astyle versions format
+the same code differently, so running `make format` with a newer one reformats
+files you never touched and breaks CI for everybody. `make format` refuses to
+run on a mismatched version — that guard is working as intended, not an obstacle
+to route around.
+
+If your system astyle is a different version, put 3.1 in a throwaway prefix
+instead of changing your environment:
+
+```bash
+conda create -y -p /tmp/astyle31 -c conda-forge astyle=3.1
+PATH=/tmp/astyle31/bin:$PATH make format     # apply formatting
+PATH=/tmp/astyle31/bin:$PATH make check      # verify both gates
+```
+
+The CI failure names each offending file:
+
+```
+ERROR: source files are not properly formatted.
+Formatted  /home/runner/work/LaMEM/LaMEM/src/marker.cpp
+Run 'make format' locally and commit the changes.
+```
+
+What astyle rewrites most often is continuation-line alignment: arguments
+wrapped onto a second line get aligned to the opening parenthesis. Writing them
+that way to begin with avoids the round trip.
+
+---
+
+## Step 7 — Push the branch
 
 ```bash
 git push -u origin <branch_name>
@@ -134,7 +189,7 @@ The `-u` sets the upstream so subsequent `git push` and `git pull` work without 
 
 ---
 
-## Step 7 — Prepare a pull request
+## Step 8 — Prepare a pull request
 
 Two paths:
 
@@ -218,6 +273,12 @@ Verify with `git remote -v` before pushing. The user's fork is the default `orig
 
 Avoid `git push --force` unless the user explicitly authorizes it for that branch. Even then, prefer `--force-with-lease` to protect against unexpected upstream updates.
 
+### Forgetting the source checks before pushing
+
+`make check` runs in CI, and one misformatted file fails the whole job. Run it
+locally first (Step 6). The trap is the astyle version: anything other than 3.1
+reformats files you never touched, turning a small PR into a tree-wide diff.
+
 ### Skipping hooks
 
 Never use `--no-verify` to bypass pre-commit hook failures. If a hook fails, fix the underlying issue and commit again.
@@ -232,6 +293,8 @@ Never use `--no-verify` to bypass pre-commit hook failures. If a hook fails, fix
 | Recent commit titles | `git log -5 --pretty=format:"%s"` |
 | Stage by path | `git add path/...` |
 | Commit with inline identity | `git -c user.email="…" -c user.name="…" commit -m "…"` |
+| Run CI's source checks | `cd src && make check` |
+| Fix formatting (astyle 3.1 only) | `cd src && make format` |
 | Push new branch | `git push -u origin <branch>` |
 | List remotes | `git remote -v` |
 | Inspect a commit | `git show <sha>` |
