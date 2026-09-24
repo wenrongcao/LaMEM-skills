@@ -5,16 +5,17 @@ description: Create, configure, and run LaMEM simulation tests in Julia. Use thi
 
 # LaMEM Test Creator
 
-A skill for creating and registering new tests in the LaMEM Julia test suite (v3.1.0).
+A skill for creating and registering new tests in the LaMEM Julia test suite (v3.2.0).
 
 ## Overview
 
 LaMEM tests live in `test/t<N>_<Name>/` directories and are driven by Julia's `@testset` blocks in `test/runtests.jl`. Each test runs a LaMEM simulation and compares log output against a pre-recorded `.expected` file using numerical tolerances.
 
-Current numbering on `master` goes up to `t36_spatially_limited_erosion`; the next new test is `t37_…`.
+Current numbering on `master` goes up to `t38_slope_dependent_erosion`; the next new test is `t39_…`.
 
 > **Check open PRs before claiming a number.** Several in-flight branches can claim the same `t<N>`
-> at once (`t37` was claimed by two open PRs simultaneously). Whoever merges second has to renumber,
+> at once (`t37` was claimed by #76 FastScape and #80 slope erosion at once; #80 merged second and became
+> `t38`). Whoever merges second has to renumber,
 > so verify with `gh pr list --repo UniMainzGeo/LaMEM --state open` and say in your PR description
 > which number you took.
 
@@ -108,8 +109,8 @@ reference file and commit it:
 
 ```bash
 cd test
-make update 37        # writes t37's .expected; other tests untouched
-make test 37          # re-run normally to confirm it now passes
+make update <N>       # writes t<N>'s .expected; other tests untouched
+make test <N>         # re-run normally to confirm it now passes
 ```
 
 Selecting the test number matters — a bare `make update` overwrites **every** `.expected` in the suite.
@@ -164,7 +165,6 @@ if should_run_test("t<N>_<Name>")
         keywords = keywords,
         accuracy = acc,
         cores    = 1,
-        opt      = true,
         mpiexec  = mpiexec,
         create_expected_file = update_expected,
         clean_dir            = clean_files)
@@ -174,6 +174,12 @@ end
 
 **Key points:**
 - `expectedFile` is passed **without** the `.expected` extension (`perform_lamem_test` adds it).
+- **No `opt` keyword (removed in v3.2.0).** The optimized build is the default; pass `deb = true`
+  for the debug build. Passing `opt = …` is now a `MethodError` (unsupported keyword argument).
+  In v3.1.0 `opt` defaulted to `true` and was checked first, so `deb = true` alone silently ran the
+  *opt* binary — v3.2.0 really runs `bin/deb`, and name such keys `<TestKey>_deb`.
+- **FastScape-only tests** must guard on `LaMEM_has_fastscape(bin_dir="../bin")` (and
+  `deb=true` for the debug binary) and fall back to `@test_skip`, as `t37_Collision_FastScape` does.
 - `update_expected` and `clean_files` are derived from the `mode=` flag at the top of `runtests.jl` — always pass them through.
 - The guard name must match the `t<N>_` prefix: `should_run_test` parses it with `^t0*(\d+)_`. A name it can't parse fails open (always runs).
 - Don't hand-roll cleanup of generated inputs. `clean_dir=true` already deletes `*.bin`, `*.out`, `*.log`, `markers*`, and `restart` from the test directory — an extra `rm(joinpath(dir, topo_file))` will fail with `ENOENT`.
@@ -193,7 +199,7 @@ The `<TestKey>` used for the `.expected` filename does not need the `t<N>_` pref
 
 ```bash
 cd test
-make test 37     # just your test, while iterating
+make test <N>    # just your test, while iterating
 make test        # full suite, before pushing
 ```
 
@@ -218,8 +224,11 @@ julia --project=../. start_tests.jl is64bit           # 64-bit integer build
 ```
 
 The driver runs `Pkg.test("LaMEM_C")` (the project is named `LaMEM_C`, not `LaMEM`).
+Before that it compiles `src/` in opt **and** deb mode — with `surf=scape` whenever `FASTSCAPE_LIB`
+is set in the environment (`start_tests.jl:29`). If you exported `FASTSCAPE_LIB` for other work,
+use `env -u FASTSCAPE_LIB make test …` to test the plain build.
 
-### Makefile targets (v3.1.0)
+### Makefile targets (v3.1.0+)
 
 | Target | Effect |
 |--------|--------|
@@ -242,7 +251,7 @@ Any bare number or hyphenated range after the target selects a subset; everythin
 ```bash
 make test 01 05 32       # only t01, t05, t32
 make test 03-07 11       # a range plus a single test
-make update 37           # regenerate only t37's expected file
+make update 38           # regenerate only t38's expected file
 make check 12-17         # object-balance check on a range
 ```
 
@@ -256,7 +265,7 @@ the top of `runtests.jl` is gone. The mode now comes from the Makefile target, s
 left to forget to reset before committing:
 
 ```bash
-make update 37     # regenerate one test's expected file
+make update 38     # regenerate one test's expected file
 make update        # regenerate ALL of them -- rarely what you want
 ```
 
@@ -277,8 +286,7 @@ numerical change shows up there.
 | `keywords` | Tuple | Strings to extract from the log |
 | `accuracy` | Tuple | `(rtol=…, atol=…)` per keyword |
 | `cores` | Int | Number of MPI cores (default 1) |
-| `opt` | Bool | Use optimized build (default `true`) |
-| `deb` | Bool | Use debug build (default `false`) |
+| `deb` | Bool | Use the debug build `bin/deb` (default `false` → `bin/opt`). There is no `opt` keyword since v3.2.0 |
 | `args` | String | Extra CLI arguments for LaMEM |
 | `bin_dir` | String | LaMEM binary directory (default `"../bin"`) |
 | `mpiexec` | String/Cmd | MPI launcher |
@@ -298,6 +306,8 @@ numerical change shows up there.
 | `run_lamem_local_test()` | Execute a LaMEM simulation (with optional MPI) |
 | `CreatePartitioningFile_local()` | Generate processor partitioning for parallel runs |
 | `compare_logfiles()` | Numerically compare two log files |
+| `LaMEM_has_fastscape(; bin_dir, deb)` | `true` if the binary reports `FASTSCAPE_ENABLED` for `-fastscape_info` (v3.2.0) |
+| `add_dylibs(cmd, dylibs)` | Pins `OMP_NUM_THREADS`/`OPENBLAS_NUM_THREADS`/`VECLIB_MAXIMUM_THREADS` = 1 on every run; with PETSc_jll also sets the loader path and `LBT_DEFAULT_LIBS` (v3.2.0) |
 | `clean_test_directory()` | Remove `*.out`, `*.log`, `*.bin`, `*.vts`, `markers*`, `restart`, `ProcessorPartitioning*`, etc. |
 
 IO helpers (markers, topography, VTR/VTS reads) live in `test/julia/IO_functions.jl`.
