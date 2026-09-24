@@ -16,6 +16,13 @@ self-contained, no need to hunt for them elsewhere):
 - `examples/MIGRATION_v2.2.1_to_v3.0.0_standalone.html` — style template for the
   standalone HTML (Step 7)
 
+**Prefer the newest upstream sibling as the structural template.** Upstream ships its guides in
+`doc/src/man/Upgrade_v<old>_to_v<new>.md` (registered under "Release Notes" in `doc/make.jl`,
+newest first): `Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`, and so on. The most
+recent one matches the current era's framing (e.g. "maintenance release", the
+"N unchanged / M removed / K added" parameter line) better than the bundled v2.2.1 example. Make
+the new guide's baseline commit exactly the previous guide's target commit so the guides tile.
+
 ---
 
 ## Ground Rules (read first)
@@ -234,6 +241,53 @@ section, and a mention directly inside the TL;DR item that concerns them.
 ### Scope creep in the HTML step
 Design agents tend to "improve" content while converting. Instruct explicitly: faithful
 conversion of the approved md, flag any content change for approval instead of making it.
+
+### Documenter heading slugs are site-wide
+When the guide ships in `doc/src/man/`, Documenter.jl builds anchors from heading text across the
+**whole site**. Reusing a previous guide's heading (e.g. "8. Pitfalls & troubleshooting") makes the
+slug ambiguous and breaks `[§8](@ref "…")` on *both* pages. Scope every heading to the version
+("8. Pitfalls when upgrading to v3.2.0") and build the docs to confirm the refs resolve.
+
+This bites in practice: the v3.2.0 draft reused "1. Requirements & build changes" from the v3.1.0
+guide, which broke the v3.1.0 guide's `[§1](@ref "1. Requirements & build changes")`. It was
+caught only by actually running `julia --project=. make.jl` in `doc/`
+(`Cannot resolve @ref ... [:cross_references]`). Pre-check for heading texts shared with any
+other page before building (empty output = no collisions):
+
+```bash
+new=doc/src/man/Upgrade_v<old>_to_v<new>.md
+comm -12 <(grep -hE '^#{1,6} ' "$new" | sed 's/^#* *//' | sort -u) \
+         <(grep -rhE --include='*.md' --exclude="$(basename "$new")" '^#{1,6} ' doc/src | sed 's/^#* *//' | sort -u)
+```
+This is only a pre-check; the docs build remains the gate.
+
+### In-tree/published docs can lag the code
+Upstream docs are claims, not ground truth. v3.2.0's `doc/src/man/FastScape.md` (published at
+https://unimainzgeo.github.io/LaMEM/dev/man/FastScape/) documents `vel_boundary` backwards (the
+code zeroes the velocity on digit `1`, `src/fastscape.cpp:2826-2851`); gives `max_fs_dt` in
+[Myr], true only for `units = geo` (under `si` it is seconds, `fastscape.cpp:306` vs `:324`);
+implies the output flags are opt-in though all default to 1 (`fastscape.cpp:800-814`); and never
+states the `units = geo/si` requirement or that the `<FastScapeStart>` block is required. Verify
+every doc claim against source, and label anything you could not check in code as
+"documented only" — e.g. the "no background strain rate" limitation (`FastScape.md:10`), which
+the code does not enforce.
+
+### Trusting PR descriptions over the merged tree
+PR bodies describe intent at the time of writing, not what merged. PR #86 said it restored
+`superlu_dist` in `t23_Permeable`, yet v3.2.0's `.dat` still says `mumps`; PR #80 said
+`t37_slope_dependent_erosion`, but it merged as `t38` after #76 took `t37`. Verify every claim
+against the tagged tree.
+
+### Bulk-diff false negatives
+The `comm` diff also *misses* additions: a new key that reuses an existing name looks unchanged.
+In v3.2.0 `n` (already a material power-law exponent) and `sed_phases` (an array in
+`surf_mode = 1`) are new, single-valued keys inside `<FastScapeStart>`. Grep new blocks and new
+source files for their own `get*Param` calls and list reused names explicitly.
+
+### Environment variables that change the build
+Check the harness for env-dependent switches before running experiments. v3.2.0's
+`test/start_tests.jl` builds with `surf=scape` whenever `FASTSCAPE_LIB` is set, so an exported
+variable silently changes which binary `make test` exercises. Use `env -u VAR` for the plain build.
 
 ### Accidental publication
 Never call the Artifact tool for these guides and never push to a remote without the

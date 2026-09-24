@@ -7,13 +7,18 @@ description: Meta-skill for keeping the LaMEM Claude Code skills themselves up t
 
 A skill for auditing and refreshing the other LaMEM skills (`lamem-codebase`,
 `lamem-test-creator`, `lamem-github-workflow`, `lamem-migration-notes`) so their
-factual claims stay true as the LaMEM codebase evolves. The skills live in
-`/home/wenrongc/LaMEM_v310/.claude/skills/` and are mirrored to the public repo
-`https://github.com/wenrongcao/LaMEM-skills` (default branch `master`).
+factual claims stay true as the LaMEM codebase evolves. The source of truth is the public repo
+`https://github.com/wenrongcao/LaMEM-skills` (default branch `master`, local clone
+`~/LaMEM-skills`). Installed copies are scattered across LaMEM checkouts
+(`<checkout>/.claude/skills/`) and go stale independently — find them with
+`find ~ -maxdepth 4 -path '*/.claude/skills/lamem-*' -type d`. Audit against a clean upstream
+clone of the target release (e.g. `git clone https://github.com/UniMainzGeo/LaMEM ~/LaMEM_v320`)
+rather than a feature branch of a fork.
 
 **The central insight: freshness is judged by the upstream COMMIT SHA, not the
-version number.** The skills target LaMEM v3.1.0. Upstream does bump the version
-(3.0.0 → 3.0.1 → 3.0.2 → 3.1.0), but it always lags `master`: dozens of commits
+version number.** The README's "Target version" callout records the release and commit the
+skills currently reflect (v3.2.0 @ `406b6444` at the last audit). Upstream does bump the version
+(3.0.0 → … → 3.1.0 → 3.2.0), but it always lags `master`: dozens of commits
 land under an unchanged string, so a skill can be badly stale while the printed
 version looks current. Always compare against the SHA, never the version string.
 
@@ -25,9 +30,9 @@ Resolve exactly which commit the codebase is at and how far it has moved past
 the release tag:
 
 ```bash
-git -C /home/wenrongc/LaMEM_v310 rev-parse --short master
-git -C /home/wenrongc/LaMEM_v310 log -1 --format=%ci master
-git -C /home/wenrongc/LaMEM_v310 describe --tags master     # e.g. v3.0.0-46-geaf75d4b
+git -C <lamem_clone> rev-parse --short master
+git -C <lamem_clone> log -1 --format=%ci master
+git -C <lamem_clone> describe --tags master     # e.g. v3.0.0-46-geaf75d4b
 ```
 
 **If the clone has no tags** (`git describe` → *"No names found"*, common for a
@@ -36,10 +41,10 @@ SHA recorded in the skills README:
 
 ```bash
 # find the release boundary without tags
-git -C /home/wenrongc/LaMEM_v310 log --oneline --all --grep="[Vv]ersion" | head
+git -C <lamem_clone> log --oneline --all --grep="[Vv]ersion" | head
 # drift window = last audited SHA (from README pin) .. master
-git -C /home/wenrongc/LaMEM_v310 log <last-audited-sha>..master --oneline --merges
-git -C /home/wenrongc/LaMEM_v310 log <last-audited-sha>..master --oneline | wc -l
+git -C <lamem_clone> log <last-audited-sha>..master --oneline --merges
+git -C <lamem_clone> log <last-audited-sha>..master --oneline | wc -l
 ```
 
 The merge commits since the tag are exactly the changes most likely to have
@@ -55,7 +60,7 @@ patterns:
 
 | Claim type | How to verify |
 |------------|---------------|
-| **Every `file:line` reference** (line numbers drift) | `grep -rnoE '[A-Za-z_]+\.(cpp|h|jl):[0-9]+' .claude/skills/*/SKILL.md` — then open each hit and confirm it still points at the claimed code |
+| **Every `file:line` reference** (line numbers drift) | `grep -rnoE '[A-Za-z_]+\.(cpp|h|jl):[0-9]+' */SKILL.md` (run in the skills repo) — then open each hit and confirm it still points at the claimed code |
 | **Counted / enumerated claims** (the classic staleness source) | e.g. test count and "next new test": `ls -d test/t[0-9]* \| sort -V \| tail` |
 | **Source-map file lists** vs actual `src/` | Check each listed file exists; check no new `.cpp`/`.h` in `src/` is uncovered |
 | **Version-range / requirement claims** (e.g. PETSc 3.19–3.25) | Verify against code guards: `grep -rn PETSC_VERSION_LT src/` — never trust docs |
@@ -69,15 +74,20 @@ every `@testset` now needed a `should_run_test(...)` wrapper, and `CHKERRQ` had 
 removed from `src/` entirely. **Run the documented commands, don't just read them**:
 a stale procedure looks perfectly plausible on the page. The audit before that caught
 an enumerated count (35 tests / next `t36` vs the real 36 / `t37`). Grep, `ls`, and
-execute the actual thing; never eyeball.
+execute the actual thing; never eyeball. The v3.1.0 → v3.2.0 audit (89 commits) again found
+harness drift: the `opt=` keyword of `perform_lamem_test` was removed (the skill template still
+passed `opt = true`, now a `MethodError`), plus a new source file (`fastscape.cpp/h`) missing from
+the source map.
 
 **Watch for contested test numbers.** "Next test number" can be claimed by more than
 one in-flight PR at once — check open PRs, not just the merged tree:
 `gh pr list --repo UniMainzGeo/LaMEM --state open`.
 
-**migration-notes skill specifics:** the shipped guide now lives at
-`doc/src/man/Upgrade_v2.2.1_to_v3.0.0.md` in the LaMEM repo. The bundled
-`examples/*.md` is **intentionally not byte-identical** to it: the repo copy is
+**migration-notes skill specifics:** upstream ships one guide per release step in
+`doc/src/man/` (`Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`, and the
+v3.1.0 → v3.2.0 guide once merged), registered in `doc/make.jl`. Only the first is bundled in the
+skill. The bundled
+`examples/*.md` is **intentionally not byte-identical** to its upstream copy: the repo copy is
 rendered by Documenter.jl and uses `[§4](@ref "…")` cross-references plus an
 "Upgrading from…" title, while the bundled copy is standalone Markdown with plain
 `#anchor` links. Diff them to confirm only those two classes of difference (title
@@ -102,7 +112,7 @@ in Step 5.
 
 ## Step 4 — Apply fixes
 
-Edit the affected `.claude/skills/<skill>/SKILL.md` files for every ❌/⚠️ that
+Edit the affected `<skill>/SKILL.md` files in the skills repo for every ❌/⚠️ that
 resolves to a real change. Leave verified-current claims untouched — a
 freshness pass changes only what drifted, nothing else.
 

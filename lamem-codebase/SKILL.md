@@ -5,9 +5,9 @@ description: Provides deep knowledge of the LaMEM (Lithosphere and Mantle Evolut
 
 # LaMEM Codebase Guide
 
-LaMEM (v3.1.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
+LaMEM (v3.2.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
 
-**Stack:** C++17 core · PETSc 3.19–3.25 · MPI · Julia test framework & integration
+**Stack:** C++17 core · PETSc 3.22–3.25 per Installation.md (3.25.4 recommended) · MPI · optional FastScape (Fortran) coupling · Julia test framework & integration
 
 ---
 
@@ -15,14 +15,14 @@ LaMEM (v3.1.0) is a parallel 3D geodynamics code for thermo-mechanical processes
 
 ```
 src/         C++ core source + LaMEM_C.jl module
-test/        36 Julia-driven test cases (t01_…–t36_…)
+test/        38 Julia-driven test cases (t01_…–t38_…)
 examples/    Pre-configured model setups (BuiltInSetups, Localization, …)
 doc/         Documenter.jl HTML documentation source
 info/        Installation notes, solver options reference, ParaView tips
-scripts/     bash/ and julia/ post-processing utilities
+scripts/     Julia post-processing utilities (+ petsc_getrestore_check.jl)
 ```
 
-Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.1.0`).
+Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.2.0`).
 
 ---
 
@@ -40,16 +40,23 @@ make mode=opt all        # Production build  → bin/opt/LaMEM
 make mode=deb all        # Debug build       → bin/deb/LaMEM
 make mode=opt dylib      # Dynamic library (Julia integration) → lib/opt/LaMEMLib.dylib
 make mode=opt clean_all  # Clean artifacts
+
+# FastScape coupling (v3.2.0, opt-in; defines -DWITH_FASTSCAPE):
+export FASTSCAPE_LIB=/dir/containing/libfastscapelib_fortran
+make mode=opt surf=scape all
+../bin/opt/LaMEM -fastscape_info   # prints FASTSCAPE_ENABLED / FASTSCAPE_DISABLED
 ```
+A binary built without `surf=scape` aborts at startup if the input sets `surf_mode = 2`.
 
 ### Static checks from `src/` (v3.1.0)
 ```bash
-make format            # reformat *.cpp/*.h in place per .astylerc (astyle required)
+make format            # reformat *.cpp/*.h in place per .astylerc (astyle 3.1 exactly)
 make checkformat       # fail if `make format` would change anything (CI gate)
 make checkgetrestore   # pair every PETSc *GetArray*/*RestoreArray* within its function
 make check             # checkformat + checkgetrestore
 ```
-Run `make check` before opening a PR — both are enforced upstream. `checkgetrestore` runs
+Run `make check` before opening a PR — both are enforced upstream. `make format` refuses to run
+unless `astyle --version` is exactly 3.1 (`ASTYLE_VERSION` / `checkastyle` in the Makefile). `checkgetrestore` runs
 `scripts/petsc_getrestore_check.jl`; `.astylerc` pins Allman braces, tab indent (width 4), and
 `convert-tabs` (leading indent tabs, in-line alignment spaces). Note that astyle flattens
 hand-aligned continuation lines unless they sit inside parentheses — hoist long expressions into
@@ -70,10 +77,12 @@ Time Loop:
   1. Advect markers, update properties
   2. Nonlinear solve (JacRes): assemble/apply residual & Jacobian → linear solve → line search
   3. Update temperature (if active)
-  4. Apply free surface erosion/sedimentation
-  5. Apply topographic diffusion (last surface process)
-  6. Advect/output passive tracers (if active)
-  7. Write output (ParaView)
+  4. Surface processes, by surf_mode (LaMEMLibSolve):
+       1 (default): erosion → slope-dependent erosion → sedimentation → topographic diffusion
+       2 (FastScape, WITH_FASTSCAPE only): FastScapeRun → max-angle smoothing
+       0: accepted but no branch runs — the free surface is not even advected (silently frozen)
+  5. Advect/output passive tracers (if active)
+  6. Write output (ParaView)
      ↓
 Marker↔Grid coupling:
   markers carry material props → interpolate to grid → solve → interpolate vel back
@@ -96,13 +105,37 @@ Marker↔Grid coupling:
 | Velocity interp | `cvi.cpp/h` | Conservative Velocity Interpolation |
 | Rheology | `constEq.cpp/h`, `meltParam.cpp/h`, `Tensor.cpp/h` | Visco-elasto-plastic constitutive equations, tensor algebra |
 | Phases | `phase.cpp/h`, `phase_transition.cpp/h` | Phase definitions, transitions (adiabatic correction in Box/NotInAirBox) |
-| BCs | `bc.cpp/h`, `surf.cpp/h` | Boundary conditions (incl. periodic), free surface + erosion + topographic diffusion |
+| BCs | `bc.cpp/h`, `surf.cpp/h` | Boundary conditions (incl. periodic), free surface + erosion + slope-dependent erosion + topographic diffusion |
+| Landscape evolution | `fastscape.cpp/h` | FastScape coupling (`FastScapeLib`, `<FastScapeStart>` block, `_fs.pvd` output); compiled only with `surf=scape` |
 | Passive tracers | `passive_tracer.cpp/h` | Lagrangian tracer tracking |
 | Special | `dike.cpp/h`, `adjoint.cpp/h`, `objFunct.cpp/h` | Dike propagation (PBC-aware), inversion gradients (PBC-aware), objective functions |
 | Output | `paraViewOut*.cpp/h`, `outFunct.cpp/h` | ParaView (AVD, binary, markers, surface, passive tracers) |
 | Utilities | `parsing.cpp/h`, `scaling.cpp/h`, `interpolate.cpp/h`, `tools.cpp/h`, `asprintf.h` | I/O, scaling, interpolation, string utilities |
 
 ---
+
+## What's New in v3.2.0 (vs v3.1.0)
+
+### FastScape coupling (PR #76)
+`surf_mode = 2` hands the free surface to the FastScape Fortran library (`fastscape.cpp/h`,
+`FastScapeLib FSLib` in `LaMEMLib`, referenced by the `FreeSurf::FSLib` pointer). Parameters live in a
+`<FastScapeStart>`/`<FastScapeEnd>` block (required); it needs `units = geo` or `si`. With
+`surf_mode = 2` the built-in `erosion_model`/`sediment_model`/`topo_diff`/`slope_dependent_erosion`
+keys are never read. All FastScape code sits behind `#ifdef WITH_FASTSCAPE`. Note: in
+`FastScapeFortranCppAdvc`, a `vel_boundary` digit `1` **zeroes** the boundary velocity
+(`fastscape.cpp:2826`) — the upstream docs state the opposite.
+`max_fs_dt` and `extendedRange` are read in LaMEM units (Myr/km for `geo`, s/m for `si`), not
+FastScape's yr/m. All FastScape output flags (`out_surf_fs`, `out_surf_topofs`, …) default to on
+(`fastscape.cpp:800`). FastScape itself is solved serially on rank 0 (`fastscape.cpp:1542`), so its
+cost does not shrink with more MPI ranks.
+
+### Slope-dependent erosion (PR #80)
+`slope_dependent_erosion = 1` with `prefactor_slope` (**m/yr**) and `n_slope`:
+`FreeSurfAppSlopeErosion` (`surf.cpp`), applied after `FreeSurfAppErosion`, sub-stepped.
+
+### Unit checks
+`topo_diff = 1` and `slope_dependent_erosion = 1` now abort under `units = none`
+(`FreeSurfCreate`, `surf.cpp`).
 
 ## What's New in v3.1.0 (vs v3.0.x)
 
@@ -271,4 +304,7 @@ julia --project=../. start_tests.jl             # direct invocation
 julia --project=../. start_tests.jl is64bit     # 64-bit integer build
 julia --project=../. start_tests.jl use_dynamic_lib   # link via PETSc_jll
 ```
+`start_tests.jl` builds with `surf=scape` whenever `FASTSCAPE_LIB` is set in the environment —
+use `env -u FASTSCAPE_LIB make test …` for a plain build. FastScape-only tests (t37) `@test_skip`
+when the binary lacks support.
 Test utilities are in `test/julia/` and `test/test_utils.jl`. See the `lamem-test-creator` skill for adding new tests.
