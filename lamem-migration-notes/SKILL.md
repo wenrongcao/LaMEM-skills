@@ -18,7 +18,8 @@ self-contained, no need to hunt for them elsewhere):
 
 **Prefer the newest upstream sibling as the structural template.** Upstream ships its guides in
 `doc/src/man/Upgrade_v<old>_to_v<new>.md` (registered under "Release Notes" in `doc/make.jl`,
-newest first): `Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`, and so on. The most
+newest first): `Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`,
+`Upgrade_v3.1.0_to_v3.2.0.md` (#89), and the v3.2.0 → v3.3.0 guide once merged. The most
 recent one matches the current era's framing (e.g. "maintenance release", the
 "N unchanged / M removed / K added" parameter line) better than the bundled v2.2.1 example. Make
 the new guide's baseline commit exactly the previous guide's target commit so the guides tile.
@@ -263,14 +264,17 @@ This is only a pre-check; the docs build remains the gate.
 
 ### In-tree/published docs can lag the code
 Upstream docs are claims, not ground truth. v3.2.0's `doc/src/man/FastScape.md` (published at
-https://unimainzgeo.github.io/LaMEM/dev/man/FastScape/) documents `vel_boundary` backwards (the
-code zeroes the velocity on digit `1`, `src/fastscape.cpp:2826-2851`); gives `max_fs_dt` in
+https://unimainzgeo.github.io/LaMEM/dev/man/FastScape/) documented `vel_boundary` backwards (the
+code zeroes the velocity on digit `1`, `src/fastscape.cpp:2826-2851`); gave `max_fs_dt` in
 [Myr], true only for `units = geo` (under `si` it is seconds, `fastscape.cpp:306` vs `:324`);
-implies the output flags are opt-in though all default to 1 (`fastscape.cpp:800-814`); and never
-states the `units = geo/si` requirement or that the `<FastScapeStart>` block is required. Verify
-every doc claim against source, and label anything you could not check in code as
-"documented only" — e.g. the "no background strain rate" limitation (`FastScape.md:10`), which
-the code does not enforce.
+implied the output flags are opt-in though all default to 1 (`fastscape.cpp:801-815`); and never
+stated the `units = geo/si` requirement or that the `<FastScapeStart>` block is required.
+**All four were fixed in v3.3.0 by #88** (`FastScape.md` and `info/options/input_file.dat`) — keep
+the lesson, not the claim: a doc-vs-code warning goes stale the moment the docs are fixed (the
+merged v3.1.0 → v3.2.0 guide still warns about it, now true only of v3.2.0), so re-check every
+such statement against the *target* tree's docs too. Verify every doc claim against source, and label
+anything you could not check in code as "documented only" — e.g. the "no background strain rate"
+limitation (`FastScape.md:10`), which the code still does not enforce.
 
 ### Trusting PR descriptions over the merged tree
 PR bodies describe intent at the time of writing, not what merged. PR #86 said it restored

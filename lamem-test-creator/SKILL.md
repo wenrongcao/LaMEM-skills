@@ -5,13 +5,13 @@ description: Create, configure, and run LaMEM simulation tests in Julia. Use thi
 
 # LaMEM Test Creator
 
-A skill for creating and registering new tests in the LaMEM Julia test suite (v3.2.0).
+A skill for creating and registering new tests in the LaMEM Julia test suite (v3.3.0).
 
 ## Overview
 
 LaMEM tests live in `test/t<N>_<Name>/` directories and are driven by Julia's `@testset` blocks in `test/runtests.jl`. Each test runs a LaMEM simulation and compares log output against a pre-recorded `.expected` file using numerical tolerances.
 
-Current numbering on `master` goes up to `t38_slope_dependent_erosion`; the next new test is `t39_…`.
+Current numbering on `master` goes up to `t39_PhaseInjection`; the next new test is `t40_…`.
 
 > **Check open PRs before claiming a number.** Several in-flight branches can claim the same `t<N>`
 > at once (`t37` was claimed by #76 FastScape and #80 slope erosion at once; #80 merged second and became
@@ -99,6 +99,11 @@ rand_noise = 1
 <SphereEnd>
 ```
 
+Since v3.3.0 any primitive can instead be stamped onto the markers **mid-run**: add
+`n_inject = 2` and `t_inject = 1.0 2.0` (≤ 10 positive, strictly increasing times, in LaMEM time
+units) and it is skipped at initialization and applied at the start of the first step reaching each
+time. See `t39_PhaseInjection`.
+
 ---
 
 ### Step 4 — Generate the expected output file
@@ -183,6 +188,9 @@ end
 - `update_expected` and `clean_files` are derived from the `mode=` flag at the top of `runtests.jl` — always pass them through.
 - The guard name must match the `t<N>_` prefix: `should_run_test` parses it with `^t0*(\d+)_`. A name it can't parse fails open (always runs).
 - Don't hand-roll cleanup of generated inputs. `clean_dir=true` already deletes `*.bin`, `*.out`, `*.log`, `markers*`, and `restart` from the test directory — an extra `rm(joinpath(dir, topo_file))` will fail with `ENOENT`.
+- **Restart tests** (pattern from `t39_PhaseInjection`): set `nstep_rdb` in the `.dat`, run once with
+  `clean_dir = false` (cleanup would delete the `restart/` directory), then call `perform_lamem_test`
+  again with `args = "-mode restart"`, its own `<TestKey>_restart_opt`, and `clean_dir = clean_files`.
 - After running the suite, confirm the new test appears as its **own row** in the Test Summary.
 
 ---
@@ -290,7 +298,7 @@ numerical change shows up there.
 | `args` | String | Extra CLI arguments for LaMEM |
 | `bin_dir` | String | LaMEM binary directory (default `"../bin"`) |
 | `mpiexec` | String/Cmd | MPI launcher |
-| `split_sign` | String | Separator used when parsing log values (default `"="`) |
+| `split_sign` | String or Tuple | Separator used when parsing log values (default `"="`); a Tuple gives one per keyword, e.g. `("", ":")` in t39 |
 | `debug` | Bool | Print output without comparing |
 | `create_expected_file` | Bool | Write `.expected` instead of comparing |
 | `clean_dir` | Bool | Clean the test dir afterwards (default `true`) — removes `Timestep*/`, `*.pvd`, `*.bin`, `*.out`, `*.log`, `markers*`, `restart` |
@@ -347,7 +355,7 @@ rm -rf markers/ Timestep_* *.vts *.pvd *.out output* LaMEM_ModelSetup*
 | SNES divergence with zero gravity | Use `gravity = 0 0 -9.81` instead of `gravity = 0 0 0` |
 | Direct solver instability / `DIVERGED_NANORINF` at iteration 0 | Set `penalty` in `<SolverOptionsStart>` (e.g. `penalty = 1e2`); applies to both `coupled_direct` and `block_direct` |
 | "Requested number of multigrid levels exceeds maximum possible" | Reduce MG levels or coarsen the grid |
-| "Less than two cells are specified in the &lt;dir&gt; - direction" (`fdstag.cpp:71`) | FDSTAG (since v3.0.0) requires **≥ 2 cells in every direction**. For a 2D (x-z) setup set `nel_y = 2` (older LaMEM allowed `nel_y = 1`). Same applies to `nel_x` / `nel_z`. |
+| "Less than two cells are specified in the &lt;dir&gt; - direction" (`fdstag.cpp:70`) | FDSTAG (since v3.0.0) requires **≥ 2 cells in every direction**. For a 2D (x-z) setup set `nel_y = 2` (older LaMEM allowed `nel_y = 1`). Same applies to `nel_x` / `nel_z`. |
 
 ### `ADVMarkCrossFreeSurf` — marker availability at the free surface
 

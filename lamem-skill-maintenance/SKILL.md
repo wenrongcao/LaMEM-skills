@@ -12,13 +12,13 @@ factual claims stay true as the LaMEM codebase evolves. The source of truth is t
 `~/LaMEM-skills`). Installed copies are scattered across LaMEM checkouts
 (`<checkout>/.claude/skills/`) and go stale independently — find them with
 `find ~ -maxdepth 4 -path '*/.claude/skills/lamem-*' -type d`. Audit against a clean upstream
-clone of the target release (e.g. `git clone https://github.com/UniMainzGeo/LaMEM ~/LaMEM_v320`)
+clone of the target release (e.g. `git clone https://github.com/UniMainzGeo/LaMEM ~/LaMEM_v330`)
 rather than a feature branch of a fork.
 
 **The central insight: freshness is judged by the upstream COMMIT SHA, not the
 version number.** The README's "Target version" callout records the release and commit the
-skills currently reflect (v3.2.0 @ `406b6444` at the last audit). Upstream does bump the version
-(3.0.0 → … → 3.1.0 → 3.2.0), but it always lags `master`: dozens of commits
+skills currently reflect (v3.3.0 @ `eb306fc4` at the last audit). Upstream does bump the version
+(3.0.0 → … → 3.1.0 → 3.2.0 → 3.3.0), but it always lags `master`: dozens of commits
 land under an unchanged string, so a skill can be badly stale while the printed
 version looks current. Always compare against the SHA, never the version string.
 
@@ -49,7 +49,10 @@ git -C <lamem_clone> log <last-audited-sha>..master --oneline | wc -l
 
 The merge commits since the tag are exactly the changes most likely to have
 outpaced the skills — **review those PRs first**. Each merged PR is a candidate
-source of drift (new tests, new files, new options, renamed parameters).
+source of drift (new tests, new files, new options, renamed parameters). **Docs-only PRs count
+too:** diff `doc/` and `info/`, not just `src/` and `test/` — in the v3.2.0 → v3.3.0 audit, #88
+touched no source yet made a skill claim false ("the upstream docs state the opposite" about
+FastScape's `vel_boundary`), because the docs it warned about had been fixed.
 
 ---
 
@@ -77,15 +80,19 @@ an enumerated count (35 tests / next `t36` vs the real 36 / `t37`). Grep, `ls`, 
 execute the actual thing; never eyeball. The v3.1.0 → v3.2.0 audit (89 commits) again found
 harness drift: the `opt=` keyword of `perform_lamem_test` was removed (the skill template still
 passed `opt = true`, now a `MethodError`), plus a new source file (`fastscape.cpp/h`) missing from
-the source map.
+the source map. The v3.2.0 → v3.3.0 audit (14 commits) was mostly counts and new content
+(t39 / next `t40`, `n_inject`/`t_inject`), but re-grepping the quoted code also caught a
+`fdstag.cpp:71` reference, correct at v3.0.0 but one line off since v3.1.0 and missed by two
+audits (the `SETERRQ` is on 70) — `grep -n` the quoted string, don't eyeball a `sed -n` window.
 
 **Watch for contested test numbers.** "Next test number" can be claimed by more than
 one in-flight PR at once — check open PRs, not just the merged tree:
 `gh pr list --repo UniMainzGeo/LaMEM --state open`.
 
 **migration-notes skill specifics:** upstream ships one guide per release step in
-`doc/src/man/` (`Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`, and the
-v3.1.0 → v3.2.0 guide once merged), registered in `doc/make.jl`. Only the first is bundled in the
+`doc/src/man/` (`Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`,
+`Upgrade_v3.1.0_to_v3.2.0.md`, and the v3.2.0 → v3.3.0 guide once merged), registered in
+`doc/make.jl`. Only the first is bundled in the
 skill. The bundled
 `examples/*.md` is **intentionally not byte-identical** to its upstream copy: the repo copy is
 rendered by Documenter.jl and uses `[§4](@ref "…")` cross-references plus an
