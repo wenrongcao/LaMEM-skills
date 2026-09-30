@@ -18,7 +18,8 @@ self-contained, no need to hunt for them elsewhere):
 
 **Prefer the newest upstream sibling as the structural template.** Upstream ships its guides in
 `doc/src/man/Upgrade_v<old>_to_v<new>.md` (registered under "Release Notes" in `doc/make.jl`,
-newest first): `Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`, and so on. The most
+newest first): `Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`,
+`Upgrade_v3.1.0_to_v3.2.0.md` (#89), and the v3.2.0 → v3.3.0 guide once merged. The most
 recent one matches the current era's framing (e.g. "maintenance release", the
 "N unchanged / M removed / K added" parameter line) better than the bundled v2.2.1 example. Make
 the new guide's baseline commit exactly the previous guide's target commit so the guides tile.
@@ -263,14 +264,17 @@ This is only a pre-check; the docs build remains the gate.
 
 ### In-tree/published docs can lag the code
 Upstream docs are claims, not ground truth. v3.2.0's `doc/src/man/FastScape.md` (published at
-https://unimainzgeo.github.io/LaMEM/dev/man/FastScape/) documents `vel_boundary` backwards (the
-code zeroes the velocity on digit `1`, `src/fastscape.cpp:2826-2851`); gives `max_fs_dt` in
+https://unimainzgeo.github.io/LaMEM/dev/man/FastScape/) documented `vel_boundary` backwards (the
+code zeroes the velocity on digit `1`, `src/fastscape.cpp:2826-2851`); gave `max_fs_dt` in
 [Myr], true only for `units = geo` (under `si` it is seconds, `fastscape.cpp:306` vs `:324`);
-implies the output flags are opt-in though all default to 1 (`fastscape.cpp:800-814`); and never
-states the `units = geo/si` requirement or that the `<FastScapeStart>` block is required. Verify
-every doc claim against source, and label anything you could not check in code as
-"documented only" — e.g. the "no background strain rate" limitation (`FastScape.md:10`), which
-the code does not enforce.
+implied the output flags are opt-in though all default to 1 (`fastscape.cpp:801-815`); and never
+stated the `units = geo/si` requirement or that the `<FastScapeStart>` block is required.
+**All four were fixed in v3.3.0 by #88** (`FastScape.md` and `info/options/input_file.dat`) — keep
+the lesson, not the claim: a doc-vs-code warning goes stale the moment the docs are fixed (the
+merged v3.1.0 → v3.2.0 guide still warns about it, now true only of v3.2.0), so re-check every
+such statement against the *target* tree's docs too. Verify every doc claim against source, and label
+anything you could not check in code as "documented only" — e.g. the "no background strain rate"
+limitation (`FastScape.md:10`), which the code still does not enforce.
 
 ### Trusting PR descriptions over the merged tree
 PR bodies describe intent at the time of writing, not what merged. PR #86 said it restored
@@ -288,6 +292,27 @@ source files for their own `get*Param` calls and list reused names explicitly.
 Check the harness for env-dependent switches before running experiments. v3.2.0's
 `test/start_tests.jl` builds with `surf=scape` whenever `FASTSCAPE_LIB` is set, so an exported
 variable silently changes which binary `make test` exercises. Use `env -u VAR` for the plain build.
+
+### Header struct changes silently break restart compatibility
+LaMEM writes its whole `LaMEMLib` struct into the restart file as one binary block
+(`fwrite(lm, sizeof(LaMEMLib), …)`, `src/LaMEMLib.cpp:334`). There is no version check. So any new
+member in a struct that `LaMEMLib` contains, e.g. `AdvCtx` in v3.3.0 (#82), makes restart databases
+unreadable across versions. The run then fails with a misleading error, in v3.3.0
+`Ownership ranges sum to … but global dimension is …` in `FDSTAGReadRestart`. Run
+`git diff <old>..<new> -- 'src/*.h'` for new struct members, and test an old→new restart
+empirically.
+
+### Updated `.expected` files flag silent result changes
+A bug fix that changes numbers shows up in the diffstat as regenerated references
+(`git diff --stat <old> <new> | grep expected`), or as changed tolerance targets in
+`test/runtests.jl`. In v3.3.0, the t14 references revealed the open-top bottom-velocity fix (#90).
+Every such file points at a silent behaviour change that belongs in the TL;DR.
+
+### Documenter `@ref` fails on headings with punctuation
+Besides site-wide collisions, the v3.3.0 heading `## 2. Mid-run phase injection (n_inject, t_inject)`
+gave `Cannot resolve @ref`, although the v3.2.0 guide's `4.3 FastScape coupling (surf_mode = 2)`
+resolves fine. The comma inside the parentheses is the likely culprit. Keep referenced headings
+free of commas, and build the docs as the gate.
 
 ### Accidental publication
 Never call the Artifact tool for these guides and never push to a remote without the

@@ -5,7 +5,7 @@ description: Provides deep knowledge of the LaMEM (Lithosphere and Mantle Evolut
 
 # LaMEM Codebase Guide
 
-LaMEM (v3.2.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
+LaMEM (v3.3.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
 
 **Stack:** C++17 core · PETSc 3.22–3.25 per Installation.md (3.25.4 recommended) · MPI · optional FastScape (Fortran) coupling · Julia test framework & integration
 
@@ -15,14 +15,14 @@ LaMEM (v3.2.0) is a parallel 3D geodynamics code for thermo-mechanical processes
 
 ```
 src/         C++ core source + LaMEM_C.jl module
-test/        38 Julia-driven test cases (t01_…–t38_…)
+test/        39 Julia-driven test cases (t01_…–t39_…)
 examples/    Pre-configured model setups (BuiltInSetups, Localization, …)
 doc/         Documenter.jl HTML documentation source
 info/        Installation notes, solver options reference, ParaView tips
 scripts/     Julia post-processing utilities (+ petsc_getrestore_check.jl)
 ```
 
-Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.2.0`).
+Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.3.0`).
 
 ---
 
@@ -74,6 +74,7 @@ Supported platforms: x86_64, arm64/aarch64, armv6l/armv7l, i686, powerpc64le, am
 Parse .dat → Create FDSTAG grid → Load/generate markers → Initialize fields
      ↓
 Time Loop:
+  0. Phase transitions → due t_inject phase injections (ADVMarkInjectGeom, v3.3.0) → BCApply
   1. Advect markers, update properties
   2. Nonlinear solve (JacRes): assemble/apply residual & Jacobian → linear solve → line search
   3. Update temperature (if active)
@@ -114,6 +115,32 @@ Marker↔Grid coupling:
 
 ---
 
+## What's New in v3.3.0 (vs v3.2.0)
+
+### Mid-run phase injection (PR #82)
+Every built-in geometric primitive (`<SphereStart>`, `<BoxStart>`, `<LayerStart>`, `<EllipsoidStart>`,
+`<RidgeSegStart>`, `<HexStart>`, `<CylinderStart>`) accepts optional `n_inject` / `t_inject`: up to
+`_max_inj_times_ = 10` (`LaMEM.h`) times, positive and strictly increasing, in LaMEM time units
+(`ADVMarkReadInjectTimes`, `marker.cpp:856`). A primitive with `n_inject > 0` is **not** applied at
+initialization; `ADVMarkInjectGeom` (`marker.cpp:1378`), called every step in `LaMEMLibSolve` right
+after `Phase_Transition` (`LaMEMLib.cpp:637`), overwrites phase (and `T` if given) of the markers it
+contains and resets APS, ATS and deviatoric stress. Pending primitives live in `AdvCtx::injGeom[]` /
+`numInjGeom`; `GeomPrimType` + `GeomPrimSetType` restore the `setPhase` pointer on restart
+(`ADVReadRestart`). With `msetup = files` or `polygons`, primitives are read only for their
+injections (`ADVMarkInitInjectGeom`); ones without `n_inject` are ignored with a warning.
+
+### Open-top boundary keeps the bottom velocity (PR #90)
+In `BCApplyVelDefault` (`bc.cpp:1434-1442`), `open_top_bound = 1` now only zeroes the top
+background velocity; the bottom one is zeroed only by `open_bot_bound` (which, conversely, did not
+zero it in v3.0–v3.2). Before, an open top also froze the bottom. This changes the numerics of any
+open-top (or open-bottom-only) model with a vertical background strain rate (the t14 references
+were regenerated).
+
+### Docs
+FastScape docs (`doc/src/man/FastScape.md`, `info/options/input_file.dat`) now match the code:
+`vel_boundary` digit `1` = zero velocity, `max_fs_dt`/`extendedRange` in LaMEM units, output on by
+default, `units = geo/si` and the `<FastScapeStart>` block required (PR #88).
+
 ## What's New in v3.2.0 (vs v3.1.0)
 
 ### FastScape coupling (PR #76)
@@ -123,7 +150,7 @@ Marker↔Grid coupling:
 `surf_mode = 2` the built-in `erosion_model`/`sediment_model`/`topo_diff`/`slope_dependent_erosion`
 keys are never read. All FastScape code sits behind `#ifdef WITH_FASTSCAPE`. Note: in
 `FastScapeFortranCppAdvc`, a `vel_boundary` digit `1` **zeroes** the boundary velocity
-(`fastscape.cpp:2826`) — the upstream docs state the opposite.
+(`fastscape.cpp:2826`) — the v3.2.0 docs stated the opposite; fixed in v3.3.0 by #88.
 `max_fs_dt` and `extendedRange` are read in LaMEM units (Myr/km for `geo`, s/m for `si`), not
 FastScape's yr/m. All FastScape output flags (`out_surf_fs`, `out_surf_topofs`, …) default to on
 (`fastscape.cpp:800`). FastScape itself is solved serially on rank 0 (`fastscape.cpp:1542`), so its
@@ -199,7 +226,7 @@ New support for `-jp_type user` with coupled direct factorisation; requires PETS
 - `scripts/` split into `bash/` and `julia/`
 
 ### Grid: minimum 2 cells per direction (breaking change)
-FDSTAG now aborts setup if any direction has fewer than 2 cells (`fdstag.cpp:71`, `MeshSeg1DReadParam`). 2D (x-z) setups that previously used `nel_y = 1` must use `nel_y = 2`. Error message: `Less than two cells are specified in the <dir> - direction`.
+FDSTAG now aborts setup if any direction has fewer than 2 cells (`fdstag.cpp:70`, `MeshSeg1DReadParam`). 2D (x-z) setups that previously used `nel_y = 1` must use `nel_y = 2`. Error message: `Less than two cells are specified in the <dir> - direction`.
 
 ---
 
