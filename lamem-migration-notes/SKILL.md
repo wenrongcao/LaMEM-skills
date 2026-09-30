@@ -293,6 +293,27 @@ Check the harness for env-dependent switches before running experiments. v3.2.0'
 `test/start_tests.jl` builds with `surf=scape` whenever `FASTSCAPE_LIB` is set, so an exported
 variable silently changes which binary `make test` exercises. Use `env -u VAR` for the plain build.
 
+### Header struct changes silently break restart compatibility
+LaMEM writes its whole `LaMEMLib` struct into the restart file as one binary block
+(`fwrite(lm, sizeof(LaMEMLib), …)`, `src/LaMEMLib.cpp:334`). There is no version check. So any new
+member in a struct that `LaMEMLib` contains, e.g. `AdvCtx` in v3.3.0 (#82), makes restart databases
+unreadable across versions. The run then fails with a misleading error, in v3.3.0
+`Ownership ranges sum to … but global dimension is …` in `FDSTAGReadRestart`. Run
+`git diff <old>..<new> -- 'src/*.h'` for new struct members, and test an old→new restart
+empirically.
+
+### Updated `.expected` files flag silent result changes
+A bug fix that changes numbers shows up in the diffstat as regenerated references
+(`git diff --stat <old> <new> | grep expected`), or as changed tolerance targets in
+`test/runtests.jl`. In v3.3.0, the t14 references revealed the open-top bottom-velocity fix (#90).
+Every such file points at a silent behaviour change that belongs in the TL;DR.
+
+### Documenter `@ref` fails on headings with punctuation
+Besides site-wide collisions, the v3.3.0 heading `## 2. Mid-run phase injection (n_inject, t_inject)`
+gave `Cannot resolve @ref`, although the v3.2.0 guide's `4.3 FastScape coupling (surf_mode = 2)`
+resolves fine. The comma inside the parentheses is the likely culprit. Keep referenced headings
+free of commas, and build the docs as the gate.
+
 ### Accidental publication
 Never call the Artifact tool for these guides and never push to a remote without the
 user's explicit go-ahead. Local files only by default.
