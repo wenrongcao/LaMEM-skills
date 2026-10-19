@@ -12,13 +12,15 @@ factual claims stay true as the LaMEM codebase evolves. The source of truth is t
 `~/LaMEM-skills`). Installed copies are scattered across LaMEM checkouts
 (`<checkout>/.claude/skills/`) and go stale independently — find them with
 `find ~ -maxdepth 4 -path '*/.claude/skills/lamem-*' -type d`. Audit against a clean upstream
-clone of the target release (e.g. `git clone https://github.com/UniMainzGeo/LaMEM ~/LaMEM_v330`)
-rather than a feature branch of a fork.
+clone of the target release (e.g. `git clone --branch v3.4.0 https://github.com/UniMainzGeo/LaMEM ~/LaMEM_v340`)
+rather than a feature branch of a fork. A `--branch <tag>` clone has no local `master`, so run the
+Step 1 commands against `HEAD`, and confirm that the tag is also upstream's tip with
+`git ls-remote https://github.com/UniMainzGeo/LaMEM refs/heads/master`.
 
 **The central insight: freshness is judged by the upstream COMMIT SHA, not the
 version number.** The README's "Target version" callout records the release and commit the
-skills currently reflect (v3.3.0 @ `eb306fc4` at the last audit). Upstream does bump the version
-(3.0.0 → … → 3.1.0 → 3.2.0 → 3.3.0), but it always lags `master`: dozens of commits
+skills currently reflect (v3.4.0 @ `6124aa7d` at the last audit). Upstream does bump the version
+(3.0.0 → … → 3.1.0 → 3.2.0 → 3.3.0 → 3.3.1 → 3.4.0), but it always lags `master`: dozens of commits
 land under an unchanged string, so a skill can be badly stale while the printed
 version looks current. Always compare against the SHA, never the version string.
 
@@ -85,13 +87,21 @@ the source map. The v3.2.0 → v3.3.0 audit (14 commits) was mostly counts and n
 `fdstag.cpp:71` reference, correct at v3.0.0 but one line off since v3.1.0 and missed by two
 audits (the `SETERRQ` is on 70) — `grep -n` the quoted string, don't eyeball a `sed -n` window.
 
+The v3.3.0 → v3.4.0 audit (120 commits, two features) showed that **the upstream release guide is
+a claim like any other**. `Upgrade_v3.3.0_to_v3.4.0.md` says the restart format did not change, but
+two structs written into the restart file grew, and an old→new restart really fails (see the
+migration-notes pitfall). It also showed that **a moved call can make the prose wrong, not just the
+line number**: "ADVMarkInjectGeom right after Phase_Transition" stopped being true when the plugin
+hook was inserted between them. Run whatever the skills tell users to run. For t41 that means
+building the plugin bundles.
+
 **Watch for contested test numbers.** "Next test number" can be claimed by more than
 one in-flight PR at once — check open PRs, not just the merged tree:
 `gh pr list --repo UniMainzGeo/LaMEM --state open`.
 
 **migration-notes skill specifics:** upstream ships one guide per release step in
 `doc/src/man/` (`Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`,
-`Upgrade_v3.1.0_to_v3.2.0.md`, and the v3.2.0 → v3.3.0 guide once merged), registered in
+`Upgrade_v3.1.0_to_v3.2.0.md`, `Upgrade_v3.2.0_to_v3.3.0.md`, `Upgrade_v3.3.0_to_v3.4.0.md`), registered in
 `doc/make.jl`. Only the first is bundled in the
 skill. The bundled
 `examples/*.md` is **intentionally not byte-identical** to its upstream copy: the repo copy is

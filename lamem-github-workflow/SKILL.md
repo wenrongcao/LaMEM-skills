@@ -150,7 +150,9 @@ make check      # checkformat (astyle) + checkgetrestore (PETSc Get/Restore pair
 
 **The astyle version must be exactly 3.1.** `src/Makefile` pins
 `ASTYLE_VERSION = 3.1`, and CI installs that version from Ubuntu 22.04
-(`apt-get install astyle` gives 3.1-2build1). Different astyle versions format
+(`apt-get install astyle` gives 3.1-2build1). Only the Linux job runs it. The macOS and
+Windows jobs that v3.4.0 added skip the format check because Homebrew has no astyle 3.1, so a green
+macOS run says nothing about formatting. Different astyle versions format
 the same code differently, so running `make format` with a newer one reformats
 files you never touched and breaks CI for everybody. `make format` refuses to
 run on a mismatched version — that guard is working as intended, not an obstacle
