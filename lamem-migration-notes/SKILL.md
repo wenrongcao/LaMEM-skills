@@ -19,7 +19,8 @@ self-contained, no need to hunt for them elsewhere):
 **Prefer the newest upstream sibling as the structural template.** Upstream ships its guides in
 `doc/src/man/Upgrade_v<old>_to_v<new>.md` (registered under "Release Notes" in `doc/make.jl`,
 newest first): `Upgrade_v2.2.1_to_v3.0.0.md`, `Upgrade_v3.0.0_to_v3.1.0.md`,
-`Upgrade_v3.1.0_to_v3.2.0.md` (#89), and the v3.2.0 → v3.3.0 guide once merged. The most
+`Upgrade_v3.1.0_to_v3.2.0.md` (#89), `Upgrade_v3.2.0_to_v3.3.0.md` (#91) and
+`Upgrade_v3.3.0_to_v3.4.0.md` (shipped with v3.4.0). The most
 recent one matches the current era's framing (e.g. "maintenance release", the
 "N unchanged / M removed / K added" parameter line) better than the bundled v2.2.1 example. Make
 the new guide's baseline commit exactly the previous guide's target commit so the guides tile.
@@ -282,6 +283,12 @@ PR bodies describe intent at the time of writing, not what merged. PR #86 said i
 `t37_slope_dependent_erosion`, but it merged as `t38` after #76 took `t37`. Verify every claim
 against the tagged tree.
 
+### Keys built at run time
+Keys assembled with `PetscSNPrintf` never appear as string literals, so the `get*Param` grep in
+Step 3 cannot see them. v3.4.0's velocity-box period keys (`vx_num_periods`, `vy_time_delims`,
+`vz_values`, …) are built from `"%s_num_periods"` etc. in `VelBoxReadPeriods` (`src/bc.cpp`).
+Grep for `PetscSNPrintf(key` and expand the patterns by hand.
+
 ### Bulk-diff false negatives
 The `comm` diff also *misses* additions: a new key that reuses an existing name looks unchanged.
 In v3.2.0 `n` (already a material power-law exponent) and `sed_phases` (an array in
@@ -295,12 +302,19 @@ variable silently changes which binary `make test` exercises. Use `env -u VAR` f
 
 ### Header struct changes silently break restart compatibility
 LaMEM writes its whole `LaMEMLib` struct into the restart file as one binary block
-(`fwrite(lm, sizeof(LaMEMLib), …)`, `src/LaMEMLib.cpp:334`). There is no version check. So any new
+(`fwrite(lm, sizeof(LaMEMLib), …)`, `src/LaMEMLib.cpp:344`). There is no version check. So any new
 member in a struct that `LaMEMLib` contains, e.g. `AdvCtx` in v3.3.0 (#82), makes restart databases
 unreadable across versions. The run then fails with a misleading error, in v3.3.0
 `Ownership ranges sum to … but global dimension is …` in `FDSTAGReadRestart`. Run
 `git diff <old>..<new> -- 'src/*.h'` for new struct members, and test an old→new restart
 empirically.
+
+The v3.4.0 guide got this wrong: its TL;DR says "no changes to the restart format", but `VelBox`
+(inside `BCCtx`, #95) and `DBMat` (`dylibPhaseTr`, #92) both grew. A restart database written by
+v3.3.0 (t39's `PhaseInjection.dat`, `-nstep_max 3`) fails under v3.4.0 `-mode restart` with
+`Ownership ranges sum to -982540586 but global dimension is 16`; a v3.4.0→v3.4.0 restart of the
+same file works. Treat "restart compatible" as a claim to test, never one to copy from a PR or a
+previous guide.
 
 ### Updated `.expected` files flag silent result changes
 A bug fix that changes numbers shows up in the diffstat as regenerated references
@@ -311,8 +325,10 @@ Every such file points at a silent behaviour change that belongs in the TL;DR.
 ### Documenter `@ref` fails on headings with punctuation
 Besides site-wide collisions, the v3.3.0 heading `## 2. Mid-run phase injection (n_inject, t_inject)`
 gave `Cannot resolve @ref`, although the v3.2.0 guide's `4.3 FastScape coupling (surf_mode = 2)`
-resolves fine. The comma inside the parentheses is the likely culprit. Keep referenced headings
-free of commas, and build the docs as the gate.
+resolves fine. A comma by itself is not the problem: the v3.4.0 guide's
+`[§4](@ref "4. Building, testing and CI")` passed the upstream `build_docs` job. The suspect is a
+comma *inside parentheses*. Avoid that combination in referenced headings, and build the docs as the
+gate.
 
 ### Accidental publication
 Never call the Artifact tool for these guides and never push to a remote without the

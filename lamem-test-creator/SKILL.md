@@ -5,13 +5,13 @@ description: Create, configure, and run LaMEM simulation tests in Julia. Use thi
 
 # LaMEM Test Creator
 
-A skill for creating and registering new tests in the LaMEM Julia test suite (v3.3.0).
+A skill for creating and registering new tests in the LaMEM Julia test suite (v3.4.0).
 
 ## Overview
 
 LaMEM tests live in `test/t<N>_<Name>/` directories and are driven by Julia's `@testset` blocks in `test/runtests.jl`. Each test runs a LaMEM simulation and compares log output against a pre-recorded `.expected` file using numerical tolerances.
 
-Current numbering on `master` goes up to `t39_PhaseInjection`; the next new test is `t40_…`.
+Current numbering on `master` goes up to `t41_PhaseTransitionPlugin`; the next new test is `t42_…`.
 
 > **Check open PRs before claiming a number.** Several in-flight branches can claim the same `t<N>`
 > at once (`t37` was claimed by #76 FastScape and #80 slope erosion at once; #80 merged second and became
@@ -191,6 +191,16 @@ end
 - **Restart tests** (pattern from `t39_PhaseInjection`): set `nstep_rdb` in the `.dat`, run once with
   `clean_dir = false` (cleanup would delete the `restart/` directory), then call `perform_lamem_test`
   again with `args = "-mode restart"`, its own `<TestKey>_restart_opt`, and `clean_dir = clean_files`.
+- **Tests that need a prebuilt artifact** (pattern from `t41_PhaseTransitionPlugin`, v3.4.0): check
+  for the artifact with `isfile(...)` and, if it is missing, print an `@info` naming the build
+  command and skip the comparisons (t41 does not use `@test_skip`, so a skipped t41 shows fewer tests,
+  not "Broken"). Keep a check that needs no artifact outside that branch so the testset always
+  asserts something. To capture a startup `SETERRQ` message, which goes to stderr, run the binary
+  yourself with `run(pipeline(add_dylibs(cmd, get_dylibs()[1]), stdout=f, stderr=f))` inside a
+  `try`/`catch` and `occursin` the file. `perform_lamem_test` only captures stdout.
+- **Cross-comparing two runs** (also t41): run both with `clean_dir = false`, compare the `.out` files
+  with `extract_info_logfiles(file, keywords)` + `isapprox`, then call `clean_test_directory(dir)`
+  yourself `if clean_files`.
 - After running the suite, confirm the new test appears as its **own row** in the Test Summary.
 
 ---
@@ -247,6 +257,21 @@ use `env -u FASTSCAPE_LIB make test …` to test the plain build.
 | `make report` | Re-check `.xml` from a previous `make grind` without re-running it |
 | `make check` | Run with `-log_view`; fail on any PETSc object creation/destruction mismatch |
 | `make clean` | Remove leftover generated files |
+
+**Running t41 locally** requires the plugin bundles (Julia ≥ 1.12, JuliaC.jl), built as in the
+`Build dylib plugin bundle (t41)` step of `.github/workflows/CI.yml`, from the repo root:
+
+```bash
+julia --project=@juliac -e 'using Pkg; Pkg.add("JuliaC")'
+for r in constant box demo_fields; do
+  julia --project=@juliac scripts/dylib_plugins/build_plugin.jl \
+        scripts/dylib_plugins/ptlib_$r.jl test/t41_PhaseTransitionPlugin
+done
+```
+The `build_*` directories are git-ignored (`test/t41_PhaseTransitionPlugin/.gitignore`).
+With all three bundles, t41 reports 28 passes. Without them it reports 1, the negative check, so a
+green t41 with a count of 1 means the plugins were never exercised. This was checked on aarch64 with
+Julia 1.13.2: building the bundles before `make test` gave 140/140 for the full suite.
 
 There is no `make purge`. `make check` is a cheap leak gate worth running on any test that touches
 PETSc objects.

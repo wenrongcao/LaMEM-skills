@@ -5,9 +5,9 @@ description: Provides deep knowledge of the LaMEM (Lithosphere and Mantle Evolut
 
 # LaMEM Codebase Guide
 
-LaMEM (v3.3.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
+LaMEM (v3.4.0) is a parallel 3D geodynamics code for thermo-mechanical processes with visco-elasto-plastic rheologies. It uses a **marker-in-cell** approach on a staggered finite difference grid, built on PETSc, and scales from laptops to 458,752 cores.
 
-**Stack:** C++17 core · PETSc 3.22–3.25 per Installation.md (3.25.4 recommended) · MPI · optional FastScape (Fortran) coupling · Julia test framework & integration
+**Stack:** C++17 core · PETSc 3.22–3.25 per Installation.md (3.25.4 recommended) · MPI · optional FastScape (Fortran) coupling · Julia test framework & integration · optional Julia phase-transition plugins (Julia ≥ 1.12 + JuliaC.jl to build; CI uses Julia 1.13)
 
 ---
 
@@ -15,14 +15,15 @@ LaMEM (v3.3.0) is a parallel 3D geodynamics code for thermo-mechanical processes
 
 ```
 src/         C++ core source + LaMEM_C.jl module
-test/        39 Julia-driven test cases (t01_…–t39_…)
+test/        41 Julia-driven test cases (t01_…–t41_…)
 examples/    Pre-configured model setups (BuiltInSetups, Localization, …)
-doc/         Documenter.jl HTML documentation source
+doc/         Documenter.jl HTML documentation source (incl. man/JuliaPlugins.md, man/Upgrade_v*.md)
 info/        Installation notes, solver options reference, ParaView tips
 scripts/     Julia post-processing utilities (+ petsc_getrestore_check.jl)
+             dylib_plugins/: LaMEMPlugin.jl (plugin ABI, Julia side), build_plugin.jl, ptlib_*.jl examples
 ```
 
-Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.3.0`).
+Version is tracked in `Project.toml` and printed by `LaMEMLib.cpp` (`Version : 3.4.0`).
 
 ---
 
@@ -62,9 +63,9 @@ unless `astyle --version` is exactly 3.1 (`ASTYLE_VERSION` / `checkastyle` in th
 hand-aligned continuation lines unless they sit inside parentheses — hoist long expressions into
 named temporaries rather than fighting it.
 
-**Build details:** Single `Makefile` (no separate `Makefile.in`). C++17, very strict warnings (`-Wall -Wextra -Wconversion -Wnon-virtual-dtor …`). Auto-detects compiler (gcc/clang/icpx). Builds `liblamem.a` then links `LaMEM`. Dependency tracking via `.d` files; force-rebuild via `dep/<mode>/makefile.stat`.
+**Build details:** Single `Makefile` (no separate `Makefile.in`). C++17, very strict warnings (`-Wall -Wextra -Wconversion -Wnon-virtual-dtor …`). Auto-detects compiler (gcc/clang/icpx, and GCC's `c++` front end since v3.4.0) from the MPI wrapper's `--show` output, falling back to `$(CXX)` itself when CXX is not an MPI wrapper (e.g. MS-MPI on Windows). Builds `liblamem.a` then links `LaMEM`. Dependency tracking via `.d` files; force-rebuild via `dep/<mode>/makefile.stat`.
 
-Supported platforms: x86_64, arm64/aarch64, armv6l/armv7l, i686, powerpc64le, amd64 (MSYS on Windows).
+Supported platforms: x86_64, arm64/aarch64, armv6l/armv7l, i686, powerpc64le, amd64 (MSYS2/MinGW on Windows — `uname` `MSYS*` or `MINGW*`). CI (v3.4.0) runs Linux (ubuntu-22.04), macOS arm64, and a Windows job that builds LaMEM and runs one plugin case.
 
 ---
 
@@ -74,7 +75,8 @@ Supported platforms: x86_64, arm64/aarch64, armv6l/armv7l, i686, powerpc64le, am
 Parse .dat → Create FDSTAG grid → Load/generate markers → Initialize fields
      ↓
 Time Loop:
-  0. Phase transitions → due t_inject phase injections (ADVMarkInjectGeom, v3.3.0) → BCApply
+  0. Built-in phase transitions (Phase_Transition) → dylib plugin rule (DylibPluginPhaseTransition, v3.4.0,
+     no-op unless loaded) → due t_inject phase injections (ADVMarkInjectGeom, v3.3.0) → BCApply
   1. Advect markers, update properties
   2. Nonlinear solve (JacRes): assemble/apply residual & Jacobian → linear solve → line search
   3. Update temperature (if active)
@@ -106,7 +108,8 @@ Marker↔Grid coupling:
 | Velocity interp | `cvi.cpp/h` | Conservative Velocity Interpolation |
 | Rheology | `constEq.cpp/h`, `meltParam.cpp/h`, `Tensor.cpp/h` | Visco-elasto-plastic constitutive equations, tensor algebra |
 | Phases | `phase.cpp/h`, `phase_transition.cpp/h` | Phase definitions, transitions (adiabatic correction in Box/NotInAirBox) |
-| BCs | `bc.cpp/h`, `surf.cpp/h` | Boundary conditions (incl. periodic), free surface + erosion + slope-dependent erosion + topographic diffusion |
+| Plugins | `dylib_plugins.cpp/h` | Loads a juliac-built shared library (`PetscDLOpen`) and calls its `lamem_phase_transition` each step; `dylib_plugins.h` is the plain-C plugin ABI (v3) |
+| BCs | `bc.cpp/h`, `surf.cpp/h` | Boundary conditions (incl. periodic, time-dependent velocity boxes), free surface + erosion + slope-dependent erosion + topographic diffusion |
 | Landscape evolution | `fastscape.cpp/h` | FastScape coupling (`FastScapeLib`, `<FastScapeStart>` block, `_fs.pvd` output); compiled only with `surf=scape` |
 | Passive tracers | `passive_tracer.cpp/h` | Lagrangian tracer tracking |
 | Special | `dike.cpp/h`, `adjoint.cpp/h`, `objFunct.cpp/h` | Dike propagation (PBC-aware), inversion gradients (PBC-aware), objective functions |
@@ -115,6 +118,52 @@ Marker↔Grid coupling:
 
 ---
 
+## What's New in v3.4.0 (vs v3.3.0)
+
+No breaking `.dat` changes, but **restart databases are not portable from v3.3.0**: `VelBox` and
+`DBMat` grew, and the restart file is a raw `fwrite` of `LaMEMLib`. A v3.3.0 `rdb` fails under v3.4.0
+with `Ownership ranges sum to … but global dimension is …`, which the upstream guide does not
+mention. (v3.3.1, tag `0a6c1ef4`, added only the marker garbage-collection fix below plus the
+v3.2.0 → v3.3.0 guide.)
+
+### Julia phase-transition plugins (PR #92)
+A user rule written in Julia (`scripts/dylib_plugins/LaMEMPlugin.jl` + one rule file) is compiled
+ahead of time with JuliaC.jl into a bundle (`build_<name>/lib/libptlib_<name>.{so,dylib}`):
+```bash
+julia --project=@juliac scripts/dylib_plugins/build_plugin.jl <rule.jl> [output_dir]
+```
+Activated by two keys (both also accepted on the command line, which overrides the `.dat`):
+`dylib_plugin = <path>` (read in `DylibPluginLoad`, called from `LaMEMLibCreate` **and**
+`LaMEMLibLoadRestart`) and `phase_transitions = builtin | dylib` (read in `DBMatCreate` into
+`DBMat::dylibPhaseTr`). `phase_transitions = dylib` without a loaded library aborts at startup
+(`DylibPluginCheckPhaseTr`, before the time loop). The hook runs every step on every rank
+**after** `Phase_Transition`, so built-in transitions see plugin changes only one step later;
+`Phasetrans = 1` is not needed for the plugin. The ABI (`DYLIB_PLUGIN_ABI_VERSION 3`, structs
+`LaMEMPluginMarkers/Cells/Step/Scaling` with fixed-width types) is checked at load via
+`lamem_plugin_abi_version` and `lamem_plugin_struct_sizes`; changing a struct in
+`dylib_plugins.h` means mirroring it in `LaMEMPlugin.jl` and bumping the ABI. Writable marker
+fields: phase, T, p, APS, ATS, deviatoric stress, displacement (values copied back only if they
+differ). One plugin per process; it cannot be used when LaMEM is loaded as a library into a running
+Julia session. User docs: `doc/src/man/JuliaPlugins.md`.
+
+### Time-dependent velocity boxes (PR #95)
+In `<VelBoxStart>`, each of `vx`/`vy`/`vz` can instead be piecewise constant in time:
+`vx_num_periods`, `vx_time_delims` (n−1 ascending end times), `vx_values` (≤ `_max_periods_` = 20),
+read by `VelBoxReadPeriods` (`bc.cpp`) with keys built by `PetscSNPrintf("%s_num_periods", comp)`.
+Giving both `vx` and `vx_num_periods` is an error. `VelBoxGetComp` returns the active velocity and,
+for `advect = 1`, the displacement as the integral of the piecewise velocity. The period keys are
+**not** listed in `info/options/input_file.dat` (only in `doc/src/man/Upgrade_v3.3.0_to_v3.4.0.md`).
+
+### Bug fixes
+- `ADVCollectGarbageVec` (`subgrid.cpp`) now sorts the deleted-marker indices before closing holes
+  (#93, also v3.3.1) — affects runs with marker merging.
+- `checkConvConstEq` (`constEq.cpp`): the `MPI_Reduce` send/receive buffers were swapped, so
+  `Warning! Number of diverged points : ...` could never print; it now can (diagnostic only).
+
+### Portability
+`__STDC_FORMAT_MACROS` in `LaMEM.h`, `_USE_MATH_DEFINES` on Windows in `Tensor.cpp`/`scaling.cpp`;
+`test/compile_lamem.jl`/`setup_packages.jl` honour `LAMEM_CI_DESTDIR` (default `/workspace/destdir`).
+
 ## What's New in v3.3.0 (vs v3.2.0)
 
 ### Mid-run phase injection (PR #82)
@@ -122,15 +171,15 @@ Every built-in geometric primitive (`<SphereStart>`, `<BoxStart>`, `<LayerStart>
 `<RidgeSegStart>`, `<HexStart>`, `<CylinderStart>`) accepts optional `n_inject` / `t_inject`: up to
 `_max_inj_times_ = 10` (`LaMEM.h`) times, positive and strictly increasing, in LaMEM time units
 (`ADVMarkReadInjectTimes`, `marker.cpp:856`). A primitive with `n_inject > 0` is **not** applied at
-initialization; `ADVMarkInjectGeom` (`marker.cpp:1378`), called every step in `LaMEMLibSolve` right
-after `Phase_Transition` (`LaMEMLib.cpp:637`), overwrites phase (and `T` if given) of the markers it
+initialization; `ADVMarkInjectGeom` (`marker.cpp:1378`), called every step in `LaMEMLibSolve` after
+`Phase_Transition` and (since v3.4.0) the dylib plugin hook (`LaMEMLib.cpp:650`), overwrites phase (and `T` if given) of the markers it
 contains and resets APS, ATS and deviatoric stress. Pending primitives live in `AdvCtx::injGeom[]` /
 `numInjGeom`; `GeomPrimType` + `GeomPrimSetType` restore the `setPhase` pointer on restart
 (`ADVReadRestart`). With `msetup = files` or `polygons`, primitives are read only for their
 injections (`ADVMarkInitInjectGeom`); ones without `n_inject` are ignored with a warning.
 
 ### Open-top boundary keeps the bottom velocity (PR #90)
-In `BCApplyVelDefault` (`bc.cpp:1434-1442`), `open_top_bound = 1` now only zeroes the top
+In `BCApplyVelDefault` (`bc.cpp:1580-1588`), `open_top_bound = 1` now only zeroes the top
 background velocity; the bottom one is zeroed only by `open_bot_bound` (which, conversely, did not
 zero it in v3.0–v3.2). Before, an open top also froze the bottom. This changes the numerics of any
 open-top (or open-bottom-only) model with a vertical background strain rate (the t14 references
@@ -287,7 +336,8 @@ array_param = val1 val2 val3
 Parsing functions: `getIntParam()`, `getScalarParam()`, `getStringParam()`.
 Second argument is `_REQUIRED_` or `_OPTIONAL_`.
 
-Reference of every available `.dat` parameter: `info/options/input_file.dat`.
+Reference of (nearly) every available `.dat` parameter: `info/options/input_file.dat` — the v3.4.0
+velocity-box period keys (`vx_num_periods`, …) are missing from it.
 Reference of every solver option / prefix: `info/options/solver_options.txt`.
 
 ---
@@ -324,9 +374,9 @@ For parallel issues: reproduce on 1 → 2 → 4 cores.
 ```bash
 cd test
 make test                                       # compiles LaMEM + runs full suite
-make test 37                                    # run only t37 (selectors: numbers and ranges)
-make update 37                                  # regenerate that test's .expected file
-make check 37                                   # PETSc object creation/destruction balance
+make test 41                                    # run only t41 (selectors: numbers and ranges)
+make update 41                                  # regenerate that test's .expected file
+make check 41                                   # PETSc object creation/destruction balance
 julia --project=../. start_tests.jl             # direct invocation
 julia --project=../. start_tests.jl is64bit     # 64-bit integer build
 julia --project=../. start_tests.jl use_dynamic_lib   # link via PETSc_jll
@@ -334,4 +384,6 @@ julia --project=../. start_tests.jl use_dynamic_lib   # link via PETSc_jll
 `start_tests.jl` builds with `surf=scape` whenever `FASTSCAPE_LIB` is set in the environment —
 use `env -u FASTSCAPE_LIB make test …` for a plain build. FastScape-only tests (t37) `@test_skip`
 when the binary lacks support.
+`t41_PhaseTransitionPlugin` needs prebuilt plugin bundles (see the `lamem-test-creator` skill);
+without them it only runs its startup negative check.
 Test utilities are in `test/julia/` and `test/test_utils.jl`. See the `lamem-test-creator` skill for adding new tests.

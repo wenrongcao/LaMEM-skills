@@ -7,14 +7,15 @@ A small collection of [Claude Code](https://claude.com/claude-code) **skills** f
 These skills give Claude project-specific knowledge so it can navigate the codebase, add and run tests,
 and handle the git/PR workflow without re-deriving conventions each session.
 
-> **Target version:** LaMEM **v3.3.0**, tracked at upstream commit **`eb306fc4`** (2026‑09‑29) —
-> the `v3.3.0` tag and `master` HEAD (merge of #90), covering mid-run phase injection for the
-> built-in geometric primitives (`n_inject`/`t_inject`, #82), FastScape docs made consistent with the
-> code (#88), the v3.1.0 → v3.2.0 upgrade guide (#89) and the open-top boundary fix that keeps the
-> background velocity at the bottom (#90). Previously pinned to v3.2.0 at `406b6444` (2026‑09‑22),
-> 14 commits earlier.
+> **Target version:** LaMEM **v3.4.0**, tracked at upstream commit **`6124aa7d`** (2026‑10‑16) —
+> the `v3.4.0` tag and `master` HEAD (merge of #92). It covers Julia phase-transition plugins
+> (`dylib_plugin` / `phase_transitions = dylib`, `src/dylib_plugins.cpp/h`, #92), time-dependent
+> velocity boxes (`vx_num_periods` …, #95), the marker garbage-collection fix (#93, also tagged
+> v3.3.1), the constitutive-solver convergence-warning fix, Windows/macOS build and CI support, and
+> the v3.2.0 → v3.3.0 and v3.3.0 → v3.4.0 upgrade guides. Previously pinned to v3.3.0 at `eb306fc4`
+> (2026‑09‑29), 120 commits earlier.
 >
-> Upstream bumps the version string at releases (… → 3.1.0 → 3.2.0 → 3.3.0), but it still
+> Upstream bumps the version string at releases (… → 3.2.0 → 3.3.0 → 3.3.1 → 3.4.0), but it still
 > lags `master` in between: many commits land under an unchanged string. The commit SHA above — not the
 > version number — remains the real reference point for how current these skills are.
 
@@ -44,7 +45,7 @@ solvers, FDSTAG, adding a test, or preparing a PR).
 
 ## Notes
 
-- Written against **LaMEM v3.3.0** at upstream commit **`eb306fc4`** (2026‑09‑29). Because upstream
+- Written against **LaMEM v3.4.0** at upstream commit **`6124aa7d`** (2026‑10‑16). Because upstream
   keeps committing to `master` between version bumps, treat the upstream commit SHA — not the
   version — as the real reference point when these skills get out of date.
 - Contributions / corrections welcome.
