@@ -6,7 +6,7 @@ description: Meta-skill for keeping the LaMEM Claude Code skills themselves up t
 # LaMEM Skill Maintenance (Meta-Skill)
 
 A skill for auditing and refreshing the other LaMEM skills (`lamem-codebase`,
-`lamem-test-creator`, `lamem-github-workflow`, `lamem-migration-notes`, `lamem-visualization`) so their
+`lamem-test-creator`, `lamem-github-workflow`, `lamem-migration-notes`, `lamem-visualization`, `lamem-initial-topo`) so their
 factual claims stay true as the LaMEM codebase evolves. The source of truth is the public repo
 `https://github.com/wenrongcao/LaMEM-skills` (default branch `master`, local clone
 `~/LaMEM-skills`). Installed copies are scattered across LaMEM checkouts
