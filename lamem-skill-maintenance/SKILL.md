@@ -6,7 +6,7 @@ description: Meta-skill for keeping the LaMEM Claude Code skills themselves up t
 # LaMEM Skill Maintenance (Meta-Skill)
 
 A skill for auditing and refreshing the other LaMEM skills (`lamem-codebase`,
-`lamem-test-creator`, `lamem-github-workflow`, `lamem-migration-notes`) so their
+`lamem-test-creator`, `lamem-github-workflow`, `lamem-migration-notes`, `lamem-visualization`) so their
 factual claims stay true as the LaMEM codebase evolves. The source of truth is the public repo
 `https://github.com/wenrongcao/LaMEM-skills` (default branch `master`, local clone
 `~/LaMEM-skills`). Installed copies are scattered across LaMEM checkouts
@@ -71,6 +71,8 @@ patterns:
 | **Version-range / requirement claims** (e.g. PETSc 3.19–3.25) | Verify against code guards: `grep -rn PETSC_VERSION_LT src/` — never trust docs |
 | **Solver preset names/defaults** | `src/options.h` (`stokes_solver`, `penalty`, `direct_solver_type`) |
 | **Test-harness param tables** | `test/test_utils.jl` (`perform_lamem_test` signature and defaults) |
+| **LaMEM.jl reader / Makie recipe API** (visualization skill) | `julia -e 'using LaMEM; println(pkgversion(LaMEM))'`, then grep the signatures in `pkgdir(LaMEM)/src/read_timestep.jl` and `ext/MakieExt.jl`; run `scripts/lamem_plot_helpers.jl` on a small output (e.g. the t43 input) |
+| **Output file suffixes / `out_*` keys** | `grep -n 'outfile' src/paraViewOut*.cpp`; `out_*` keys in `info/options/input_file.dat` |
 
 **Real example (v3.0.0 → v3.1.0 audit, 54 commits of drift):** most breakage was
 in *procedures*, not counts — `runtests.jl` had replaced its `maintenance = true` /

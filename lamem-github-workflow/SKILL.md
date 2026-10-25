@@ -193,6 +193,10 @@ The `-u` sets the upstream so subsequent `git push` and `git pull` work without 
 
 ## Step 8 — Prepare a pull request
 
+Figures (verification plots, before/after comparisons) cannot be uploaded with `gh`. Host them on a
+separate `pr-assets/<topic>` branch of the user's fork and link raw URLs pinned to its commit SHA,
+as described in the `lamem-visualization` skill (§7). Never commit figures to LaMEM itself.
+
 Two paths:
 
 ### Path A — User opens the PR in the GitHub UI

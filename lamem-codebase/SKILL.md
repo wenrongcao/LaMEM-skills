@@ -386,4 +386,5 @@ use `env -u FASTSCAPE_LIB make test …` for a plain build. FastScape-only tests
 when the binary lacks support.
 `t41_PhaseTransitionPlugin` needs prebuilt plugin bundles (see the `lamem-test-creator` skill);
 without them it only runs its startup negative check.
-Test utilities are in `test/julia/` and `test/test_utils.jl`. See the `lamem-test-creator` skill for adding new tests.
+Test utilities are in `test/julia/` and `test/test_utils.jl`. See the `lamem-test-creator` skill for adding new tests,
+and the `lamem-visualization` skill for reading and plotting output in Julia.
