@@ -343,7 +343,9 @@ numerical change shows up there.
 | `add_dylibs(cmd, dylibs)` | Pins `OMP_NUM_THREADS`/`OPENBLAS_NUM_THREADS`/`VECLIB_MAXIMUM_THREADS` = 1 on every run; with PETSc_jll also sets the loader path and `LBT_DEFAULT_LIBS` (v3.2.0) |
 | `clean_test_directory()` | Remove `*.out`, `*.log`, `*.bin`, `*.vts`, `markers*`, `restart`, `ProcessorPartitioning*`, etc. |
 
-IO helpers (markers, topography, VTR/VTS reads) live in `test/julia/IO_functions.jl`.
+IO helpers (markers, topography, VTR/VTS reads) live in `test/julia/IO_functions.jl`. They only
+load inside the test environment (they need ReadVTK); to plot or post-process output outside the
+suite, use LaMEM.jl in the default Julia environment — see the `lamem-visualization` skill.
 
 ---
 
