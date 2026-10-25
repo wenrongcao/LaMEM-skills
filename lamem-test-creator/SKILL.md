@@ -386,6 +386,8 @@ rm -rf markers/ Timestep_* *.vts *.pvd *.out output* LaMEM_ModelSetup*
 
 ### `ADVMarkCrossFreeSurf` — marker availability at the free surface
 
+(Initial topography files, their format and this pitfall in more depth: see the `lamem-initial-topo` skill.)
+
 If the free surface can move **upward** (via diffusion, sedimentation, or advection), rock markers must already exist in cells above the initial surface. Without them, LaMEM aborts with:
 
 ```

@@ -28,6 +28,7 @@ plot and verify results, and handle the git/PR workflow without re-deriving conv
 | [`lamem-github-workflow`](lamem-github-workflow/SKILL.md) | Commit / branch / push / pull-request workflow for LaMEM, keeping commits clean and PR descriptions structured. |
 | [`lamem-migration-notes`](lamem-migration-notes/SKILL.md) | Produce a migration guide / release notes between two LaMEM versions — validated against both source trees, delivered as Markdown with an optional standalone HTML page. Ships bundled example templates. |
 | [`lamem-visualization`](lamem-visualization/SKILL.md) | Read LaMEM output into Julia (LaMEM.jl) and make CairoMakie figures: profiles, time histories, cross-sections, model-vs-analytical and model-vs-model checks, and figures for PRs. Ships a small helper script. |
+| [`lamem-initial-topo`](lamem-initial-topo/SKILL.md) | Non-flat initial free surface from a binary topography file (`surf_topo_file`, GMG `save_LaMEM_topography`): setup script, file format, coverage checks, and the marker-availability pitfall. |
 | [`lamem-skill-maintenance`](lamem-skill-maintenance/SKILL.md) | Meta-skill: audit and refresh these skills against the current upstream HEAD (freshness judged by commit SHA, not the version string, which lags `master`), then propagate fixes back to this repo. |
 
 ## Usage
@@ -38,7 +39,7 @@ project's `.claude/` directory or your user-level skills directory:
 
 ```bash
 # project-local (per LaMEM checkout)
-cp -r lamem-codebase lamem-test-creator lamem-github-workflow lamem-migration-notes lamem-visualization lamem-skill-maintenance /path/to/LaMEM/.claude/skills/
+cp -r lamem-codebase lamem-test-creator lamem-github-workflow lamem-migration-notes lamem-visualization lamem-initial-topo lamem-skill-maintenance /path/to/LaMEM/.claude/skills/
 ```
 
 Claude loads a skill when a request matches its `description` triggers (e.g. mentioning LaMEM, PETSc
